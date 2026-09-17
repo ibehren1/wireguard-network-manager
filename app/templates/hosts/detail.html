@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}{{ host.name }} - WireGuard Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>{{ host.name }}</h1>
+  <div>
+    <a class="btn btn-secondary" href="{{ url_for('hosts.edit_host', host_id=host._id) }}">Edit</a>
+    <form method="post" action="{{ url_for('hosts.rotate_key', host_id=host._id) }}" class="d-inline" onsubmit="return confirm('Rotate key? Existing tunnel files will stop working.');">
+      <button type="submit" class="btn btn-warning">Rotate Key</button>
+    </form>
+    <form method="post" action="{{ url_for('hosts.delete_host', host_id=host._id) }}" class="d-inline" onsubmit="return confirm('Delete this host?');">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<dl class="row">
+  <dt class="col-sm-2">Endpoint</dt><dd class="col-sm-10">{{ host.endpoint or "-" }}</dd>
+  <dt class="col-sm-2">Listen Port</dt><dd class="col-sm-10">{{ host.listen_port or "-" }}</dd>
+  <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ host.dns or "-" }}</dd>
+  <dt class="col-sm-2">MTU</dt><dd class="col-sm-10">{{ host.mtu or "-" }}</dd>
+  <dt class="col-sm-2">Public Key</dt><dd class="col-sm-10"><code>{{ key.public_key if key else "-" }}</code></dd>
+</dl>
+
+<h3 class="mt-4">Network Memberships</h3>
+<table class="table">
+  <thead><tr><th>Network</th><th>IP</th><th></th></tr></thead>
+  <tbody>
+    {% for m in host.network_memberships %}
+    <tr>
+      <td>{{ networks[m.network_id].name if m.network_id in networks else m.network_id }}</td>
+      <td><code>{{ m.ip }}</code></td>
+      <td>
+        <form method="post" action="{{ url_for('hosts.remove_network_membership', host_id=host._id, network_id=m.network_id) }}" onsubmit="return confirm('Remove this membership?');">
+          <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No network memberships.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a class="btn btn-sm btn-primary" href="{{ url_for('hosts.add_network_membership', host_id=host._id) }}">Add Network Membership</a>
+
+<h3 class="mt-4">Attached Clients</h3>
+<table class="table">
+  <thead><tr><th>Client</th><th>AllowedIPs (client's IP)</th><th>PersistentKeepalive</th></tr></thead>
+  <tbody>
+    {% for item in attached_clients %}
+    <tr>
+      <td><a href="{{ url_for('clients.detail', client_id=item.client._id) }}">{{ item.client.name }}</a></td>
+      <td><code>{{ item.connection.allowed_ips }}</code></td>
+      <td>{{ item.connection.persistent_keepalive or "-" }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No clients attached.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3 class="mt-4">Peer Hosts (Host-to-Host)</h3>
+<table class="table">
+  <thead><tr><th>Host</th><th>Network</th><th>Endpoint</th><th>AllowedIPs</th><th>PersistentKeepalive</th><th></th></tr></thead>
+  <tbody>
+    {% for item in peer_hosts %}
+    <tr>
+      <td><a href="{{ url_for('hosts.detail', host_id=item.host._id) }}">{{ item.host.name }}</a></td>
+      <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
+      <td>{{ item.connection.endpoint_override or item.host.endpoint or "-" }}</td>
+      <td><code>{{ item.connection.allowed_ips }}</code></td>
+      <td>{{ item.connection.persistent_keepalive or "-" }}</td>
+      <td>
+        <form method="post" action="{{ url_for('hosts.remove_peer_connection', host_id=host._id, peer_host_id=item.host._id, network_id=item.connection.network_id) }}" onsubmit="return confirm('Remove this peer connection?');">
+          <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6">No peer hosts.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a class="btn btn-sm btn-primary" href="{{ url_for('hosts.add_peer_connection', host_id=host._id) }}">Add Peer Host</a>
+
+<h3 class="mt-4">Tunnel Config</h3>
+<a class="btn btn-secondary" href="{{ url_for('hosts.config', host_id=host._id) }}" target="_blank">View Config</a>
+<a class="btn btn-primary" href="{{ url_for('hosts.config', host_id=host._id, download=1) }}">Download Config</a>
+{% endblock %}

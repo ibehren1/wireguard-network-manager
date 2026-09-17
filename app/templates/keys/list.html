@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Keys - WireGuard Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4">Keys</h1>
+<p class="text-muted">Keys are created and rotated from a Host's or Client's detail page. This is a read-only overview, including rotation history.</p>
+<table class="table">
+  <thead><tr><th>Public Key</th><th>Owner Type</th><th>Owner</th><th>Active</th><th>Created</th></tr></thead>
+  <tbody>
+    {% for key in keys %}
+    <tr class="{{ '' if key.active else 'text-muted' }}">
+      <td><code>{{ key.public_key }}</code></td>
+      <td>{{ key.owner_type }}</td>
+      <td>{{ key.owner_name }}</td>
+      <td>{{ "Active" if key.active else "Retired" }}</td>
+      <td>{{ key.created_at }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No keys yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

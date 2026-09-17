@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}{{ client.name }} - WireGuard Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>{{ client.name }}</h1>
+  <div>
+    <a class="btn btn-secondary" href="{{ url_for('clients.edit_client', client_id=client._id) }}">Edit</a>
+    <form method="post" action="{{ url_for('clients.rotate_key', client_id=client._id) }}" class="d-inline" onsubmit="return confirm('Rotate key? Existing tunnel files will stop working.');">
+      <button type="submit" class="btn btn-warning">Rotate Key</button>
+    </form>
+    <form method="post" action="{{ url_for('clients.delete_client', client_id=client._id) }}" class="d-inline" onsubmit="return confirm('Delete this client?');">
+      <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<dl class="row">
+  <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ client.dns or "-" }}</dd>
+  <dt class="col-sm-2">Public Key</dt><dd class="col-sm-10"><code>{{ key.public_key if key else "-" }}</code></dd>
+</dl>
+
+<h3 class="mt-4">Network Memberships</h3>
+<table class="table">
+  <thead><tr><th>Network</th><th>IP</th><th></th></tr></thead>
+  <tbody>
+    {% for m in client.network_memberships %}
+    <tr>
+      <td>{{ networks[m.network_id].name if m.network_id in networks else m.network_id }}</td>
+      <td><code>{{ m.ip }}</code></td>
+      <td>
+        <form method="post" action="{{ url_for('clients.remove_network_membership', client_id=client._id, network_id=m.network_id) }}" onsubmit="return confirm('Remove this membership?');">
+          <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No network memberships.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a class="btn btn-sm btn-primary" href="{{ url_for('clients.add_network_membership', client_id=client._id) }}">Add Network Membership</a>
+
+<h3 class="mt-4">Connections (to Hosts)</h3>
+<table class="table">
+  <thead><tr><th>Host</th><th>Network</th><th>AllowedIPs</th><th>PersistentKeepalive</th><th></th></tr></thead>
+  <tbody>
+    {% for item in connections %}
+    <tr>
+      <td>{% if item.host %}<a href="{{ url_for('hosts.detail', host_id=item.host._id) }}">{{ item.host.name }}</a>{% else %}(deleted host){% endif %}</td>
+      <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
+      <td><code>{{ item.connection.allowed_ips }}</code></td>
+      <td>{{ item.connection.persistent_keepalive or "-" }}</td>
+      <td>
+        <a href="{{ url_for('clients.config', client_id=client._id, index=item.index) }}" target="_blank">View Config</a>
+        &middot;
+        <a href="{{ url_for('clients.config', client_id=client._id, index=item.index, download=1) }}">Download</a>
+        &middot;
+        <form method="post" action="{{ url_for('clients.remove_connection', client_id=client._id, index=item.index) }}" class="d-inline" onsubmit="return confirm('Remove this connection?');">
+          <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No connections yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<a class="btn btn-sm btn-primary" href="{{ url_for('clients.add_connection', client_id=client._id) }}">Add Connection</a>
+{% endblock %}

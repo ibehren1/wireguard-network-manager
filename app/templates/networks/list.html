@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Networks - WireGuard Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>Networks</h1>
+  <a class="btn btn-primary" href="{{ url_for('networks.create_network') }}">New Network</a>
+</div>
+<table class="table">
+  <thead><tr><th>Name</th><th>CIDR</th><th>Description</th><th>Assigned IPs</th><th></th></tr></thead>
+  <tbody>
+    {% for net in networks %}
+    <tr>
+      <td>{{ net.name }}</td>
+      <td><code>{{ net.cidr }}</code></td>
+      <td>{{ net.description }}</td>
+      <td>{{ net.used_count }}</td>
+      <td>
+        <a href="{{ url_for('networks.edit_network', network_id=net._id) }}">Edit</a>
+        <form method="post" action="{{ url_for('networks.delete_network', network_id=net._id) }}" class="d-inline" onsubmit="return confirm('Delete this network?');">
+          <button type="submit" class="btn btn-link text-danger p-0 ms-2">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No networks yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

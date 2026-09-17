@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Add Network Membership - WireGuard Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4">Add Network Membership to {{ host.name }}</h1>
+<form method="post" class="col-md-6">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.network_id.label(class="form-label") }}
+    {{ form.network_id(class="form-select", id="network_id") }}
+  </div>
+  <div class="mb-3">
+    {{ form.ip.label(class="form-label") }}
+    {{ form.ip(class="form-control", id="ip") }}
+    <div class="form-text">Auto-suggested next free IP; edit if needed.</div>
+  </div>
+  <button type="submit" class="btn btn-primary">Add</button>
+  <a class="btn btn-secondary" href="{{ url_for('hosts.detail', host_id=host._id) }}">Cancel</a>
+</form>
+
+<script>
+async function suggestIp() {
+  const select = document.getElementById("network_id");
+  const ipField = document.getElementById("ip");
+  if (!select.value) return;
+  const resp = await fetch(`/networks/${select.value}/next-free-ip`);
+  if (!resp.ok) return;
+  const data = await resp.json();
+  if (data.ip) ipField.value = data.ip;
+}
+document.getElementById("network_id").addEventListener("change", suggestIp);
+document.addEventListener("DOMContentLoaded", suggestIp);
+</script>
+{% endblock %}

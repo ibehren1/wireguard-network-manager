@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Add Peer Host - WireGuard Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4">Add Peer Host to {{ host.name }}</h1>
+
+{% if not form.peer_host_id.choices %}
+<p>No other hosts exist yet.</p>
+{% elif not form.network_id.choices %}
+<p>{{ host.name }} is not a member of any network yet. Add a network membership first.</p>
+{% else %}
+<form method="post" class="col-md-6">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.peer_host_id.label(class="form-label") }}
+    {{ form.peer_host_id(class="form-select") }}
+  </div>
+  <div class="mb-3">
+    {{ form.network_id.label(class="form-label") }}
+    {{ form.network_id(class="form-select") }}
+    <div class="form-text">Must be a network both this host and the peer host belong to.</div>
+  </div>
+  <div class="mb-3">
+    {{ form.allowed_ips.label(class="form-label") }}
+    {{ form.allowed_ips(class="form-control", placeholder="e.g. 10.0.0.2/32") }}
+  </div>
+  <div class="mb-3">
+    {{ form.endpoint_override.label(class="form-label") }}
+    {{ form.endpoint_override(class="form-control", placeholder="defaults to the peer host's own endpoint") }}
+  </div>
+  <div class="mb-3">
+    {{ form.persistent_keepalive.label(class="form-label") }}
+    {{ form.persistent_keepalive(class="form-control") }}
+  </div>
+  <button type="submit" class="btn btn-primary">Add</button>
+  <a class="btn btn-secondary" href="{{ url_for('hosts.detail', host_id=host._id) }}">Cancel</a>
+</form>
+
+{% if reference %}
+<h5 class="mt-4">Reference: other hosts' IPs on your networks</h5>
+<table class="table table-sm">
+  <thead><tr><th>Host</th><th>Network</th><th>IP</th></tr></thead>
+  <tbody>
+    {% for r in reference %}
+    <tr><td>{{ r.host }}</td><td>{{ r.network }}</td><td><code>{{ r.ip }}</code></td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endif %}
+{% endblock %}

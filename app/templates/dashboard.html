@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - WireGuard Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4">Dashboard</h1>
+<div class="row">
+  <div class="col-md-3">
+    <div class="card text-center mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Networks</h5>
+        <p class="display-6">{{ counts.networks }}</p>
+        <a href="{{ url_for('networks.list_networks') }}">View</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Hosts</h5>
+        <p class="display-6">{{ counts.hosts }}</p>
+        <a href="{{ url_for('hosts.list_hosts') }}">View</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Clients</h5>
+        <p class="display-6">{{ counts.clients }}</p>
+        <a href="{{ url_for('clients.list_clients') }}">View</a>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card text-center mb-3">
+      <div class="card-body">
+        <h5 class="card-title">Keys</h5>
+        <p class="display-6">{{ counts.keys }}</p>
+        <a href="{{ url_for('keys.list_keys') }}">View</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

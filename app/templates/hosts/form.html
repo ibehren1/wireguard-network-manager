@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - WireGuard Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4">{{ title }}</h1>
+<form method="post" class="col-md-6">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.name.label(class="form-label") }}
+    {{ form.name(class="form-control") }}
+  </div>
+  <div class="mb-3">
+    {{ form.endpoint.label(class="form-label") }}
+    {{ form.endpoint(class="form-control", placeholder="vpn.example.com:51820") }}
+  </div>
+  <div class="mb-3">
+    {{ form.listen_port.label(class="form-label") }}
+    {{ form.listen_port(class="form-control", placeholder="51820") }}
+  </div>
+  <div class="mb-3">
+    {{ form.dns.label(class="form-label") }}
+    {{ form.dns(class="form-control") }}
+  </div>
+  <div class="mb-3">
+    {{ form.mtu.label(class="form-label") }}
+    {{ form.mtu(class="form-control") }}
+  </div>
+
+  {% if form.key_source is defined %}
+  <fieldset class="mb-3 border p-3">
+    <legend>Key</legend>
+    {% for subfield in form.key_source %}
+      <div class="form-check">
+        {{ subfield(class="form-check-input") }}
+        {{ subfield.label(class="form-check-label") }}
+      </div>
+    {% endfor %}
+    <div class="mb-3 mt-3">
+      {{ form.public_key.label(class="form-label") }}
+      {{ form.public_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
+    </div>
+    <div class="mb-3">
+      {{ form.private_key.label(class="form-label") }}
+      {{ form.private_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
+    </div>
+  </fieldset>
+  {% endif %}
+
+  <button type="submit" class="btn btn-primary">Save</button>
+  <a class="btn btn-secondary" href="{{ url_for('hosts.list_hosts') }}">Cancel</a>
+</form>
+{% endblock %}
