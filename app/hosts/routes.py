@@ -11,10 +11,10 @@ from app.hosts.forms import (
     HostPeerConnectionForm,
     NetworkMembershipForm,
 )
-from app.keys.service import assign_key_to_owner, deactivate_key, generate_and_store_key, store_provided_key
+from app.keys.service import assign_key_to_owner, generate_and_store_key, key_usages, store_provided_key
 from app.services.graph import build_host_graph
 from app.services.tunnel import render_host_config
-from app.utils.crypto import is_valid_wg_key, keypair_matches
+from app.utils.crypto import is_valid_wg_key
 from app.utils.ipam import ip_in_network
 
 
@@ -26,10 +26,10 @@ def _membership_ip(memberships, network_id):
     return next((m["ip"] for m in memberships if m["network_id"] == network_id), None)
 
 
-def _unassigned_key_choices(db):
+def _key_choices(db):
     return [
-        (str(k["_id"]), k["public_key"])
-        for k in db.keys.find({"owner_type": None}).sort("created_at", -1)
+        (str(k["_id"]), k.get("name") or "(unnamed key)")
+        for k in db.keys.find().sort("name", 1)
     ]
 
 
@@ -44,19 +44,14 @@ def list_hosts():
 @login_required
 def create_host():
     form = HostCreateForm()
-    form.existing_key_id.choices = _unassigned_key_choices(get_db())
+    form.existing_key_id.choices = _key_choices(get_db())
     if form.validate_on_submit():
-        if form.key_source.data == "provide":
-            public_key = (form.public_key.data or "").strip()
-            private_key = (form.private_key.data or "").strip()
-            if not is_valid_wg_key(public_key) or not is_valid_wg_key(private_key):
-                flash("Public/private key must be valid base64-encoded 32-byte WireGuard keys.", "danger")
-                return render_template("hosts/form.html", form=form, title="New Host")
-            if not keypair_matches(public_key, private_key):
-                flash("Provided public key does not match the private key.", "danger")
-                return render_template("hosts/form.html", form=form, title="New Host")
-        elif form.key_source.data == "existing" and not form.existing_key_id.data:
-            flash("Choose an unassigned key.", "danger")
+        private_key = (form.private_key.data or "").strip()
+        if form.key_source.data == "new" and private_key and not is_valid_wg_key(private_key):
+            flash("Private key must be a valid base64-encoded 32-byte WireGuard key.", "danger")
+            return render_template("hosts/form.html", form=form, title="New Host")
+        if form.key_source.data == "existing" and not form.existing_key_id.data:
+            flash("Choose an existing key.", "danger")
             return render_template("hosts/form.html", form=form, title="New Host")
 
         host_doc = {
@@ -71,13 +66,22 @@ def create_host():
         }
         host_id = get_db().hosts.insert_one(host_doc).inserted_id
 
-        if form.key_source.data == "provide":
-            key_id = store_provided_key("host", host_id, public_key, private_key)
-            get_db().hosts.update_one({"_id": host_id}, {"$set": {"active_key_id": key_id}})
-        elif form.key_source.data == "existing":
+        if form.key_source.data == "existing":
+            prior_usages = key_usages(form.existing_key_id.data)
             assign_key_to_owner(form.existing_key_id.data, "host", host_id)
+            if prior_usages:
+                used_by = ", ".join(u["name"] for u in prior_usages)
+                flash(
+                    f"This key is already used by: {used_by} — it will now also be used by {form.name.data}. "
+                    "This isn't recommended (WireGuard keys are meant to be unique per peer).",
+                    "warning",
+                )
         else:
-            key_id = generate_and_store_key("host", host_id)
+            key_name = f"{form.name.data} key"
+            if private_key:
+                key_id = store_provided_key(key_name, private_key)
+            else:
+                key_id = generate_and_store_key(key_name)
             get_db().hosts.update_one({"_id": host_id}, {"$set": {"active_key_id": key_id}})
 
         flash("Host created.", "success")
@@ -168,7 +172,6 @@ def delete_host(host_id):
         flash("Cannot delete a Host that another Host peers with.", "danger")
         return redirect(url_for("hosts.detail", host_id=host_id))
 
-    db.keys.delete_many({"owner_type": "host", "owner_id": host_id})
     db.hosts.delete_one({"_id": host["_id"]})
     flash("Host deleted.", "success")
     return redirect(url_for("hosts.list_hosts"))
@@ -180,11 +183,9 @@ def rotate_key(host_id):
     host = _find_host_or_404(host_id)
     if not host:
         return redirect(url_for("hosts.list_hosts"))
-    if host.get("active_key_id"):
-        deactivate_key(host["active_key_id"])
-    new_key_id = generate_and_store_key("host", host_id)
+    new_key_id = generate_and_store_key(f"{host.get('name') or host_id} key")
     get_db().hosts.update_one({"_id": host["_id"]}, {"$set": {"active_key_id": new_key_id}})
-    flash("Key rotated. Existing tunnel files using the old key will stop working.", "success")
+    flash("Key rotated. Existing tunnel files using the old key will stop working. The old key is left in the system in case it's still used elsewhere.", "success")
     return redirect(url_for("hosts.detail", host_id=host_id))
 
 
@@ -197,11 +198,19 @@ def assign_existing_key(host_id):
         return redirect(url_for("hosts.list_hosts"))
 
     form = AssignExistingKeyForm()
-    form.existing_key_id.choices = _unassigned_key_choices(db)
+    form.existing_key_id.choices = _key_choices(db)
 
     if form.validate_on_submit():
+        prior_usages = key_usages(form.existing_key_id.data)
         assign_key_to_owner(form.existing_key_id.data, "host", host_id)
         flash("Key assigned. Existing tunnel files using the old key will stop working.", "success")
+        if prior_usages:
+            used_by = ", ".join(u["name"] for u in prior_usages)
+            flash(
+                f"This key is already used by: {used_by} — it will now also be used by {host.get('name', host_id)}. "
+                "This isn't recommended (WireGuard keys are meant to be unique per peer).",
+                "warning",
+            )
         return redirect(url_for("hosts.detail", host_id=host_id))
 
     return render_template("hosts/assign_key_form.html", form=form, host=host)

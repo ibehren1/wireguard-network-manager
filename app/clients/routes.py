@@ -6,10 +6,10 @@ from app.clients import bp
 from app.clients.forms import AssignExistingKeyForm, ClientConnectionForm, ClientCreateForm, ClientForm
 from app.extensions import get_db
 from app.hosts.forms import NetworkMembershipForm
-from app.keys.service import assign_key_to_owner, deactivate_key, generate_and_store_key, store_provided_key
+from app.keys.service import assign_key_to_owner, generate_and_store_key, key_usages, store_provided_key
 from app.services.graph import build_client_graph
 from app.services.tunnel import render_client_config
-from app.utils.crypto import is_valid_wg_key, keypair_matches
+from app.utils.crypto import is_valid_wg_key
 from app.utils.ipam import ip_in_network
 
 
@@ -21,10 +21,10 @@ def _membership_ip(memberships, network_id):
     return next((m["ip"] for m in memberships if m["network_id"] == network_id), None)
 
 
-def _unassigned_key_choices(db):
+def _key_choices(db):
     return [
-        (str(k["_id"]), k["public_key"])
-        for k in db.keys.find({"owner_type": None}).sort("created_at", -1)
+        (str(k["_id"]), k.get("name") or "(unnamed key)")
+        for k in db.keys.find().sort("name", 1)
     ]
 
 
@@ -39,19 +39,14 @@ def list_clients():
 @login_required
 def create_client():
     form = ClientCreateForm()
-    form.existing_key_id.choices = _unassigned_key_choices(get_db())
+    form.existing_key_id.choices = _key_choices(get_db())
     if form.validate_on_submit():
-        if form.key_source.data == "provide":
-            public_key = (form.public_key.data or "").strip()
-            private_key = (form.private_key.data or "").strip()
-            if not is_valid_wg_key(public_key) or not is_valid_wg_key(private_key):
-                flash("Public/private key must be valid base64-encoded 32-byte WireGuard keys.", "danger")
-                return render_template("clients/form.html", form=form, title="New Client")
-            if not keypair_matches(public_key, private_key):
-                flash("Provided public key does not match the private key.", "danger")
-                return render_template("clients/form.html", form=form, title="New Client")
-        elif form.key_source.data == "existing" and not form.existing_key_id.data:
-            flash("Choose an unassigned key.", "danger")
+        private_key = (form.private_key.data or "").strip()
+        if form.key_source.data == "new" and private_key and not is_valid_wg_key(private_key):
+            flash("Private key must be a valid base64-encoded 32-byte WireGuard key.", "danger")
+            return render_template("clients/form.html", form=form, title="New Client")
+        if form.key_source.data == "existing" and not form.existing_key_id.data:
+            flash("Choose an existing key.", "danger")
             return render_template("clients/form.html", form=form, title="New Client")
 
         client_doc = {
@@ -63,13 +58,22 @@ def create_client():
         }
         client_id = get_db().clients.insert_one(client_doc).inserted_id
 
-        if form.key_source.data == "provide":
-            key_id = store_provided_key("client", client_id, public_key, private_key)
-            get_db().clients.update_one({"_id": client_id}, {"$set": {"active_key_id": key_id}})
-        elif form.key_source.data == "existing":
+        if form.key_source.data == "existing":
+            prior_usages = key_usages(form.existing_key_id.data)
             assign_key_to_owner(form.existing_key_id.data, "client", client_id)
+            if prior_usages:
+                used_by = ", ".join(u["name"] for u in prior_usages)
+                flash(
+                    f"This key is already used by: {used_by} — it will now also be used by {form.name.data}. "
+                    "This isn't recommended (WireGuard keys are meant to be unique per peer).",
+                    "warning",
+                )
         else:
-            key_id = generate_and_store_key("client", client_id)
+            key_name = f"{form.name.data} key"
+            if private_key:
+                key_id = store_provided_key(key_name, private_key)
+            else:
+                key_id = generate_and_store_key(key_name)
             get_db().clients.update_one({"_id": client_id}, {"$set": {"active_key_id": key_id}})
 
         flash("Client created.", "success")
@@ -130,7 +134,6 @@ def delete_client(client_id):
     if not client:
         return redirect(url_for("clients.list_clients"))
 
-    db.keys.delete_many({"owner_type": "client", "owner_id": client_id})
     db.clients.delete_one({"_id": client["_id"]})
     flash("Client deleted.", "success")
     return redirect(url_for("clients.list_clients"))
@@ -142,11 +145,9 @@ def rotate_key(client_id):
     client = _find_client_or_404(client_id)
     if not client:
         return redirect(url_for("clients.list_clients"))
-    if client.get("active_key_id"):
-        deactivate_key(client["active_key_id"])
-    new_key_id = generate_and_store_key("client", client_id)
+    new_key_id = generate_and_store_key(f"{client.get('name') or client_id} key")
     get_db().clients.update_one({"_id": client["_id"]}, {"$set": {"active_key_id": new_key_id}})
-    flash("Key rotated. Existing tunnel files using the old key will stop working.", "success")
+    flash("Key rotated. Existing tunnel files using the old key will stop working. The old key is left in the system in case it's still used elsewhere.", "success")
     return redirect(url_for("clients.detail", client_id=client_id))
 
 
@@ -159,11 +160,19 @@ def assign_existing_key(client_id):
         return redirect(url_for("clients.list_clients"))
 
     form = AssignExistingKeyForm()
-    form.existing_key_id.choices = _unassigned_key_choices(db)
+    form.existing_key_id.choices = _key_choices(db)
 
     if form.validate_on_submit():
+        prior_usages = key_usages(form.existing_key_id.data)
         assign_key_to_owner(form.existing_key_id.data, "client", client_id)
         flash("Key assigned. Existing tunnel files using the old key will stop working.", "success")
+        if prior_usages:
+            used_by = ", ".join(u["name"] for u in prior_usages)
+            flash(
+                f"This key is already used by: {used_by} — it will now also be used by {client.get('name', client_id)}. "
+                "This isn't recommended (WireGuard keys are meant to be unique per peer).",
+                "warning",
+            )
         return redirect(url_for("clients.detail", client_id=client_id))
 
     return render_template("clients/assign_key_form.html", form=form, client=client)

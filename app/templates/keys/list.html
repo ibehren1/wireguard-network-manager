@@ -5,44 +5,41 @@
   <h1>Keys</h1>
   <a class="btn btn-primary" href="{{ url_for('keys.create_key') }}">New Key</a>
 </div>
-<p class="text-muted">Keys are generated/rotated from a Host's or Client's detail page, or created here on their own and assigned later.</p>
+<p class="text-muted">Keys are generated/rotated from a Host's or Client's detail page, or created here on their own and assigned later. A key can be used by more than one Host/Client, though that isn't recommended.</p>
 <table class="table">
-  <thead><tr><th>Public Key</th><th>Owner Type</th><th>Owner</th><th>Status</th><th>Created</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Public Key</th><th>Used By</th><th>Created</th><th></th></tr></thead>
   <tbody>
     {% for key in keys %}
-    <tr class="{{ '' if key.active else 'text-muted' }}">
-      <td><code>{{ key.public_key }}</code></td>
-      <td>{{ key.owner_type or "-" }}</td>
+    <tr>
+      <td>{{ key.get("name") or "(unnamed)" }}</td>
+      <td><code>{{ key.get("public_key") or "-" }}</code></td>
       <td>
-        {% if key.owner_type == "host" and key.owner_url_id %}
-          <a href="{{ url_for('hosts.detail', host_id=key.owner_url_id) }}"><i class="bi bi-server"></i> {{ key.owner_name }}</a>
-        {% elif key.owner_type == "client" and key.owner_url_id %}
-          <a href="{{ url_for('clients.detail', client_id=key.owner_url_id) }}"><i class="bi bi-laptop"></i> {{ key.owner_name }}</a>
+        {% set usages = key.get("usages") or [] %}
+        {% if usages %}
+          {% for u in usages %}
+            {% if u.type == "host" %}
+              <a href="{{ url_for('hosts.detail', host_id=u.id) }}"><i class="bi bi-server"></i> {{ u.name }}</a>
+            {% else %}
+              <a href="{{ url_for('clients.detail', client_id=u.id) }}"><i class="bi bi-laptop"></i> {{ u.name }}</a>
+            {% endif %}
+            {%- if not loop.last %}, {% endif %}
+          {% endfor %}
         {% else %}
-          {{ key.owner_name or "-" }}
+          <span class="badge bg-secondary">Unused</span>
         {% endif %}
       </td>
+      <td>{{ key.get("created_at") }}</td>
       <td>
-        {% if key.owner_type is none %}
-          <span class="badge bg-secondary">Unassigned</span>
-        {% elif key.active %}
-          <span class="badge bg-success">Active</span>
-        {% else %}
-          <span class="badge bg-light text-dark">Retired</span>
-        {% endif %}
-      </td>
-      <td>{{ key.created_at }}</td>
-      <td>
-        {% if key.owner_type is none %}
-          <a href="{{ url_for('keys.assign_key', key_id=key._id) }}">Assign</a>
-          <form method="post" action="{{ url_for('keys.delete_key', key_id=key._id) }}" class="d-inline" onsubmit="return confirm('Delete this unassigned key?');">
+        <a href="{{ url_for('keys.assign_key', key_id=key._id) }}">Assign</a>
+        {% if not usages %}
+          <form method="post" action="{{ url_for('keys.delete_key', key_id=key._id) }}" class="d-inline" onsubmit="return confirm('Delete this key?');">
             <button type="submit" class="btn btn-link text-danger p-0 ms-2">Delete</button>
           </form>
         {% endif %}
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="6">No keys yet.</td></tr>
+    <tr><td colspan="5">No keys yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>
