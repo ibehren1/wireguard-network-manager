@@ -1,14 +1,8 @@
-from flask import jsonify, render_template
+from flask import jsonify
 from flask_login import login_required
 
 from app.services.graph import build_full_graph
 from app.topology import bp
-
-
-@bp.route("/")
-@login_required
-def index():
-    return render_template("topology/index.html")
 
 
 @bp.route("/graph.json")
