@@ -1,0 +1,20 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
+{% extends "base.html" %}
+{% block title %}New Key - WireGuard Network Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4"><i class="bi bi-key"></i> New Key</h1>
+<form method="post" class="col-md-6">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.name.label(class="form-label") }}
+    {{ form.name(class="form-control") }}
+  </div>
+  <div class="mb-3">
+    {{ form.private_key.label(class="form-label") }}
+    {{ form.private_key(class="form-control", placeholder="leave blank to generate a new key") }}
+    <div class="form-text">Only the private key is needed — the public key is always derived from it.</div>
+  </div>
+  <button type="submit" class="btn btn-primary">Create</button>
+  <a class="btn btn-secondary" href="{{ url_for('keys.list_keys') }}">Cancel</a>
+</form>
+{% endblock %}

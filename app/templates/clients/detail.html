@@ -1,10 +1,16 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
 {% extends "base.html" %}
-{% block title %}{{ client.name }} - WireGuard Manager{% endblock %}
+{% import "macros.html" as macros %}
+{% block title %}{{ client.name }} - WireGuard Network Manager{% endblock %}
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/styles/vis-network.min.css" rel="stylesheet">
+{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h1>{{ client.name }}</h1>
+  <h1><i class="bi bi-laptop"></i> {{ client.name }}</h1>
   <div>
     <a class="btn btn-secondary" href="{{ url_for('clients.edit_client', client_id=client._id) }}">Edit</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('clients.assign_existing_key', client_id=client._id) }}">Assign Existing Key</a>
     <form method="post" action="{{ url_for('clients.rotate_key', client_id=client._id) }}" class="d-inline" onsubmit="return confirm('Rotate key? Existing tunnel files will stop working.');">
       <button type="submit" class="btn btn-warning">Rotate Key</button>
     </form>
@@ -15,18 +21,23 @@
 </div>
 
 <dl class="row">
-  <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ client.dns or "-" }}</dd>
-  <dt class="col-sm-2">Public Key</dt><dd class="col-sm-10"><code>{{ key.public_key if key else "-" }}</code></dd>
+  <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ dns_server.name if dns_server else "-" }}</dd>
+  <dt class="col-sm-2">Public Key</dt><dd class="col-sm-10">{% if key %}<code>{{ key.get("public_key") or "-" }}</code>{% else %}-{% endif %}</dd>
+  <dt class="col-sm-2">Private Key</dt><dd class="col-sm-10">{{ macros.secret_reveal(private_key or "-", client._id) }}</dd>
 </dl>
+
+<h3 class="mt-4">Connections Graph</h3>
+<div id="graph" style="height: 420px; border: 1px solid #dee2e6; border-radius: 4px;"></div>
 
 <h3 class="mt-4">Network Memberships</h3>
 <table class="table">
-  <thead><tr><th>Network</th><th>IP</th><th></th></tr></thead>
+  <thead><tr><th>Network</th><th>IP</th><th>Interface</th><th></th></tr></thead>
   <tbody>
     {% for m in client.network_memberships %}
     <tr>
-      <td>{{ networks[m.network_id].name if m.network_id in networks else m.network_id }}</td>
+      <td><a href="{{ url_for('networks.view_network', network_id=m.network_id) }}"><i class="bi bi-diagram-3"></i> {{ networks[m.network_id].name if m.network_id in networks else m.network_id }}</a></td>
       <td><code>{{ m.ip }}</code></td>
+      <td>{{ m.interface_name or "-" }}</td>
       <td>
         <form method="post" action="{{ url_for('clients.remove_network_membership', client_id=client._id, network_id=m.network_id) }}" onsubmit="return confirm('Remove this membership?');">
           <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
@@ -34,36 +45,67 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="3">No network memberships.</td></tr>
+    <tr><td colspan="4">No network memberships.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 <a class="btn btn-sm btn-primary" href="{{ url_for('clients.add_network_membership', client_id=client._id) }}">Add Network Membership</a>
 
-<h3 class="mt-4">Connections (to Hosts)</h3>
-<table class="table">
-  <thead><tr><th>Host</th><th>Network</th><th>AllowedIPs</th><th>PersistentKeepalive</th><th></th></tr></thead>
-  <tbody>
-    {% for item in connections %}
-    <tr>
-      <td>{% if item.host %}<a href="{{ url_for('hosts.detail', host_id=item.host._id) }}">{{ item.host.name }}</a>{% else %}(deleted host){% endif %}</td>
-      <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
-      <td><code>{{ item.connection.allowed_ips }}</code></td>
-      <td>{{ item.connection.persistent_keepalive or "-" }}</td>
-      <td>
-        <a href="{{ url_for('clients.config', client_id=client._id, index=item.index) }}" target="_blank">View Config</a>
-        &middot;
-        <a href="{{ url_for('clients.config', client_id=client._id, index=item.index, download=1) }}">Download</a>
-        &middot;
-        <form method="post" action="{{ url_for('clients.remove_connection', client_id=client._id, index=item.index) }}" class="d-inline" onsubmit="return confirm('Remove this connection?');">
-          <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5">No connections yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<h3 class="mt-4">Connections (to Hosts), by interface</h3>
+{% for iface in interfaces %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <div>
+      {% if iface.network %}<a href="{{ url_for('networks.view_network', network_id=iface.membership.network_id) }}"><i class="bi bi-diagram-3"></i> {{ iface.network.name }}</a>{% else %}{{ iface.membership.network_id }}{% endif %}
+      &mdash; interface <code>{{ iface.interface_name }}</code> &mdash; <code>{{ iface.membership.ip }}</code>
+    </div>
+    <div>
+      <a class="btn btn-sm btn-secondary" href="{{ url_for('clients.config', client_id=client._id, network_id=iface.membership.network_id) }}" target="_blank">View Config</a>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('clients.config', client_id=client._id, network_id=iface.membership.network_id, download=1) }}">Download</a>
+    </div>
+  </div>
+  <table class="table mb-0">
+    <thead><tr><th>Host</th><th>AllowedIPs</th><th>PersistentKeepalive</th><th></th></tr></thead>
+    <tbody>
+      {% for item in iface.connections %}
+      <tr>
+        <td>{% if item.host %}<a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-hdd-rack"></i> {{ item.host.name }}</a>{% else %}(deleted host){% endif %}</td>
+        <td>
+          {% set aset = allowed_ips_sets.get(item.connection.allowed_ips_set_id) %}
+          {{ aset.name ~ " (" ~ aset.cidrs ~ ")" if aset else "-" }}
+        </td>
+        <td>{{ item.connection.persistent_keepalive or "-" }}</td>
+        <td>
+          <form method="post" action="{{ url_for('clients.remove_connection', client_id=client._id, index=item.index) }}" class="d-inline" onsubmit="return confirm('Remove this connection?');">
+            <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No connections on this interface yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p>No network memberships — no interfaces to connect from.</p>
+{% endfor %}
 <a class="btn btn-sm btn-primary" href="{{ url_for('clients.add_connection', client_id=client._id) }}">Add Connection</a>
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+fetch("{{ url_for('clients.graph_json', client_id=client._id) }}")
+  .then(r => r.json())
+  .then(data => {
+    const nodes = new vis.DataSet(data.nodes);
+    const edges = new vis.DataSet(data.edges);
+    new vis.Network(document.getElementById("graph"), {nodes, edges}, {
+      nodes: {font: {size: 14}},
+      edges: {font: {size: 11}, arrows: {to: {enabled: true, scaleFactor: 0.5}}},
+      physics: false,
+      layout: {hierarchical: {direction: "UD", levelSeparation: 230, nodeSpacing: 280, treeSpacing: 300, sortMethod: "directed", blockShifting: true, edgeMinimization: true, parentCentralization: true}}
+    });
+  });
+</script>
 {% endblock %}

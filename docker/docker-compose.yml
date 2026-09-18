@@ -1,9 +1,15 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
+name: wireguard-network-manager
+
 services:
-  wireguard-manager:
-    build: .
-    image: wireguard-manager:latest
+  wireguard-network-manager:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: wireguard-network-manager:latest
     ports:
-      - "8080:5000"
+      - "127.0.0.1:8080:5000"
     environment:
       - MONGO_URI=mongodb://127.0.0.1:27017/wireguard_manager
       - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required, see .env.example}

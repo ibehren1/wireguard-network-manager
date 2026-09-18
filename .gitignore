@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 __pycache__/
 *.pyc
 .venv/
@@ -5,3 +7,4 @@ venv/
 .env
 *.log
 .DS_Store
+.claude/

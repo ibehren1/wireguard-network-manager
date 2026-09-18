@@ -1,17 +1,17 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
 {% extends "base.html" %}
-{% block title %}Clients - WireGuard Manager{% endblock %}
+{% block title %}Clients - WireGuard Network Manager{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1>Clients</h1>
   <a class="btn btn-primary" href="{{ url_for('clients.create_client') }}">New Client</a>
 </div>
 <table class="table">
-  <thead><tr><th>Name</th><th>DNS</th><th>Networks</th><th>Connections</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Networks</th><th>Connections</th><th></th></tr></thead>
   <tbody>
     {% for client in clients %}
     <tr>
-      <td><a href="{{ url_for('clients.detail', client_id=client._id) }}">{{ client.name }}</a></td>
-      <td>{{ client.dns or "-" }}</td>
+      <td><a href="{{ url_for('clients.detail', client_id=client._id) }}"><i class="bi bi-laptop"></i> {{ client.name }}</a></td>
       <td>{{ client.network_memberships|length }}</td>
       <td>{{ client.connections|length }}</td>
       <td>
@@ -22,7 +22,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5">No clients yet.</td></tr>
+    <tr><td colspan="4">No clients yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

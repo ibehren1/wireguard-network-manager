@@ -1,7 +1,8 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
 {% extends "base.html" %}
-{% block title %}Add Peer Host - WireGuard Manager{% endblock %}
+{% block title %}Add Peer Host - WireGuard Network Manager{% endblock %}
 {% block content %}
-<h1 class="mb-4">Add Peer Host to {{ host.name }}</h1>
+<h1 class="mb-4">Add Peer Host to <i class="bi bi-hdd-rack"></i> {{ host.name }}</h1>
 
 {% if not form.peer_host_id.choices %}
 <p>No other hosts exist yet.</p>
@@ -20,8 +21,9 @@
     <div class="form-text">Must be a network both this host and the peer host belong to.</div>
   </div>
   <div class="mb-3">
-    {{ form.allowed_ips.label(class="form-label") }}
-    {{ form.allowed_ips(class="form-control", placeholder="e.g. 10.0.0.2/32") }}
+    {{ form.allowed_ips_set_id.label(class="form-label") }}
+    {{ form.allowed_ips_set_id(class="form-select") }}
+    <div class="form-text">Also used as the default for the reciprocal connection created on the peer host; edit it there afterward if needed. Manage sets on the <a href="{{ url_for('allowed_ips.list_allowed_ips_sets') }}">Allowed IPs</a> page.</div>
   </div>
   <div class="mb-3">
     {{ form.endpoint_override.label(class="form-label") }}

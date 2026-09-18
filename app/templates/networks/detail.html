@@ -1,0 +1,71 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
+{% extends "base.html" %}
+{% block title %}{{ network.name }} - WireGuard Network Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1><i class="bi bi-diagram-3"></i> {{ network.name }}</h1>
+  <a class="btn btn-secondary" href="{{ url_for('networks.edit_network', network_id=network._id) }}">Edit</a>
+</div>
+
+<dl class="row">
+  <dt class="col-sm-2">CIDR</dt><dd class="col-sm-10"><code>{{ network.cidr }}</code></dd>
+  <dt class="col-sm-2">Description</dt><dd class="col-sm-10">{{ network.description or "-" }}</dd>
+  <dt class="col-sm-2">Type</dt><dd class="col-sm-10">{{ network.network_type_label }}</dd>
+  {% if network.managing_host %}
+  <dt class="col-sm-2">Managing Host</dt>
+  <dd class="col-sm-10"><a href="{{ url_for('hosts.detail', host_id=network.managing_host.id) }}"><i class="bi bi-hdd-rack"></i> {{ network.managing_host.name }}</a></dd>
+  {% endif %}
+  <dt class="col-sm-2">Assigned IPs</dt><dd class="col-sm-10">{{ assigned_count }}</dd>
+</dl>
+
+{% if children %}
+<h3 class="mt-4">Subnets</h3>
+<table class="table table-sm">
+  <thead><tr><th>Name</th><th>CIDR</th><th>Assigned IPs</th></tr></thead>
+  <tbody>
+    {% for child in children %}
+    <tr>
+      <td><a href="{{ url_for('networks.view_network', network_id=child.id) }}"><i class="bi bi-diagram-3"></i> {{ child.name }}</a></td>
+      <td><code>{{ child.cidr }}</code></td>
+      <td>{{ child.used_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+
+<h3 class="mt-4">Address Table</h3>
+{% if truncated %}
+<p class="text-muted">This network is too large to list every address; showing assigned IPs only (including those assigned via subnets of this network).</p>
+{% endif %}
+<table class="table table-sm">
+  <thead><tr><th>IP</th><th>Host/Client</th><th>Subnet</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr class="{{ 'text-muted' if row.kind == 'reserved' else '' }}">
+      <td><code>{{ row.ip }}</code></td>
+      <td>
+        {% if row.kind == "reserved" %}
+          <em>{{ row.label }} (unusable)</em>
+        {% elif row.kind == "host" %}
+          <a href="{{ url_for('hosts.detail', host_id=row.id) }}"><i class="bi bi-hdd-rack"></i> {{ row.name }}</a>
+        {% elif row.kind == "client" %}
+          <a href="{{ url_for('clients.detail', client_id=row.id) }}"><i class="bi bi-laptop"></i> {{ row.name }}</a>
+        {% elif row.kind == "subnet" %}
+          <span class="text-muted">part of subnet</span>
+        {% else %}
+          <span class="text-muted">free</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if row.subnet %}
+          <a href="{{ url_for('networks.view_network', network_id=row.subnet.id) }}"><i class="bi bi-diagram-3"></i> {{ row.subnet.name }}</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No addresses to show.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

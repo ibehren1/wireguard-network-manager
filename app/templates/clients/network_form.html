@@ -1,7 +1,8 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
 {% extends "base.html" %}
-{% block title %}Add Network Membership - WireGuard Manager{% endblock %}
+{% block title %}Add Network Membership - WireGuard Network Manager{% endblock %}
 {% block content %}
-<h1 class="mb-4">Add Network Membership to {{ client.name }}</h1>
+<h1 class="mb-4">Add Network Membership to <i class="bi bi-laptop"></i> {{ client.name }}</h1>
 <form method="post" class="col-md-6">
   {{ form.hidden_tag() }}
   <div class="mb-3">
@@ -12,6 +13,11 @@
     {{ form.ip.label(class="form-label") }}
     {{ form.ip(class="form-control", id="ip") }}
     <div class="form-text">Auto-suggested next free IP; edit if needed.</div>
+  </div>
+  <div class="mb-3">
+    {{ form.interface_name.label(class="form-label") }}
+    {{ form.interface_name(class="form-control", id="interface_name") }}
+    <div class="form-text">Name of the WireGuard interface for this membership (e.g. wg0); edit if needed.</div>
   </div>
   <button type="submit" class="btn btn-primary">Add</button>
   <a class="btn btn-secondary" href="{{ url_for('clients.detail', client_id=client._id) }}">Cancel</a>

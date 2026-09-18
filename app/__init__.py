@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 from flask import Flask
 
 from app.config import Config
@@ -14,13 +16,16 @@ def create_app():
     login_manager.init_app(app)
     login_manager.login_view = "auth.login"
 
+    from app.allowed_ips import bp as allowed_ips_bp
     from app.auth import bp as auth_bp
     from app.auth import models as auth_models  # noqa: F401 registers user_loader
     from app.clients import bp as clients_bp
+    from app.dns_servers import bp as dns_servers_bp
     from app.hosts import bp as hosts_bp
     from app.keys import bp as keys_bp
     from app.main import bp as main_bp
     from app.networks import bp as networks_bp
+    from app.topology import bp as topology_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -28,10 +33,17 @@ def create_app():
     app.register_blueprint(hosts_bp)
     app.register_blueprint(clients_bp)
     app.register_blueprint(keys_bp)
+    app.register_blueprint(topology_bp)
+    app.register_blueprint(dns_servers_bp)
+    app.register_blueprint(allowed_ips_bp)
 
     from app.bootstrap import ensure_admin_user
 
     with app.app_context():
         ensure_admin_user()
+
+    @app.context_processor
+    def inject_version():
+        return {"app_version": app.config["VERSION"]}
 
     return app

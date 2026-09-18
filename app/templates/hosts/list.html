@@ -1,18 +1,17 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
 {% extends "base.html" %}
-{% block title %}Hosts - WireGuard Manager{% endblock %}
+{% block title %}Hosts - WireGuard Network Manager{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1>Hosts</h1>
   <a class="btn btn-primary" href="{{ url_for('hosts.create_host') }}">New Host</a>
 </div>
 <table class="table">
-  <thead><tr><th>Name</th><th>Endpoint</th><th>Listen Port</th><th>Networks</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Interfaces</th><th></th></tr></thead>
   <tbody>
     {% for host in hosts %}
     <tr>
-      <td><a href="{{ url_for('hosts.detail', host_id=host._id) }}">{{ host.name }}</a></td>
-      <td>{{ host.endpoint or "-" }}</td>
-      <td>{{ host.listen_port or "-" }}</td>
+      <td><a href="{{ url_for('hosts.detail', host_id=host._id) }}"><i class="bi bi-hdd-rack"></i> {{ host.name }}</a></td>
       <td>{{ host.network_memberships|length }}</td>
       <td>
         <a href="{{ url_for('hosts.edit_host', host_id=host._id) }}">Edit</a>
@@ -22,7 +21,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5">No hosts yet.</td></tr>
+    <tr><td colspan="3">No hosts yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

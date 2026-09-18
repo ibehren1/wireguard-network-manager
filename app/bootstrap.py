@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 from flask import current_app
 from werkzeug.security import generate_password_hash
 

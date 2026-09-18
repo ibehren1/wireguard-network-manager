@@ -1,5 +1,6 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
 {% extends "base.html" %}
-{% block title %}{{ title }} - WireGuard Manager{% endblock %}
+{% block title %}{{ title }} - WireGuard Network Manager{% endblock %}
 {% block content %}
 <h1 class="mb-4">{{ title }}</h1>
 <form method="post" class="col-md-6">
@@ -9,8 +10,8 @@
     {{ form.name(class="form-control") }}
   </div>
   <div class="mb-3">
-    {{ form.dns.label(class="form-label") }}
-    {{ form.dns(class="form-control") }}
+    {{ form.dns_server_id.label(class="form-label") }}
+    {{ form.dns_server_id(class="form-select") }}
   </div>
 
   {% if form.key_source is defined %}
@@ -23,13 +24,16 @@
       </div>
     {% endfor %}
     <div class="mb-3 mt-3">
-      {{ form.public_key.label(class="form-label") }}
-      {{ form.public_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
-    </div>
-    <div class="mb-3">
       {{ form.private_key.label(class="form-label") }}
-      {{ form.private_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
+      {{ form.private_key(class="form-control", placeholder="leave blank to generate a new key") }}
+      <div class="form-text">Only the private key is needed — the public key is always derived from it.</div>
     </div>
+    {% if form.existing_key_id.choices %}
+    <div class="mb-3">
+      {{ form.existing_key_id.label(class="form-label") }}
+      {{ form.existing_key_id(class="form-select") }}
+    </div>
+    {% endif %}
   </fieldset>
   {% endif %}
 

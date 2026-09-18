@@ -1,0 +1,28 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
+{% extends "base.html" %}
+{% block title %}DNS Servers - WireGuard Network Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>DNS Servers</h1>
+  <a class="btn btn-primary" href="{{ url_for('dns_servers.create_dns_server') }}">New DNS Server</a>
+</div>
+<table class="table">
+  <thead><tr><th>Name</th><th>IPs</th><th></th></tr></thead>
+  <tbody>
+    {% for server in servers %}
+    <tr>
+      <td>{{ server.name }}</td>
+      <td><code>{{ server.ips }}</code></td>
+      <td>
+        <a href="{{ url_for('dns_servers.edit_dns_server', dns_server_id=server._id) }}">Edit</a>
+        <form method="post" action="{{ url_for('dns_servers.delete_dns_server', dns_server_id=server._id) }}" class="d-inline" onsubmit="return confirm('Delete this DNS server?');">
+          <button type="submit" class="btn btn-link text-danger p-0 ms-2">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No DNS servers yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
