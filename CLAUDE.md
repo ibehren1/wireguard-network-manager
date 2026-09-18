@@ -105,9 +105,12 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
   (`allowedIpsSetId`) and `WireGuardHost.peerConnections` (`allowedIpsSetId`) — required
   on both. Deleting an AllowedIpsSet is blocked while any Client connection or Host peer
   connection still references it.
-- The export-time `allowed_ips_override` query param on a Client's config endpoint
-  (`/clients/<id>/config/<index>?allowed_ips_override=...`) remains a raw string override
-  independent of this preset system, for ad-hoc one-off exports.
+- The export-time `allowed_ips_override` query param on a Client's per-interface config
+  endpoint (`/clients/<id>/config/<network_id>?allowed_ips_override=...`) remains a raw
+  string override independent of this preset system, for ad-hoc one-off exports. Since a
+  single interface's exported config can contain more than one `[Peer]` block (one per
+  Host connection on that network), the override — when present — is applied to *every*
+  peer block's `AllowedIPs` line in that export, not just one.
 
 **WireGuardHost**
 - `name`, `activeKeyId`, `hostname` (optional bare hostname/IP, no port, set when this
@@ -132,47 +135,76 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 - `networkMemberships`: `[{networkId, ip, interfaceName}, ...]` — a Client can belong to multiple Networks.
   `interfaceName` behaves the same as on `WireGuardHost` above (freely editable, defaults to
   `wg<index>` when adding a new membership, used to name each per-interface tunnel config).
-- `connections`: `[{hostId, allowedIpsSetId, persistentKeepalive}, ...]` — one entry per Host this Client connects to.
+- `connections`: `[{hostId, networkId, allowedIpsSetId, persistentKeepalive}, ...]` — one
+  entry per Host this Client connects to on a given Network. `networkId` must be a
+  Network the Client is a member of (and that the Host is also a member of); a Client can
+  have more than one `connections` entry on the *same* `networkId` (e.g. two Hosts on the
+  same Network for redundancy) — see "Tunnel file generation" below for how that's
+  exported.
   - `allowedIpsSetId` references an AllowedIpsSet (e.g. that Network's CIDR for split-tunnel, or a `0.0.0.0/0` set for full-tunnel).
   - `persistentKeepalive` defaults to `10`.
-  - A Client needing multiple exported configs for different environments (e.g. split-tunnel vs full-tunnel) gets this via either multiple `connections` entries (each pointing at a different AllowedIpsSet), or an export-time `allowed_ips_override` on a single connection (no separate stored "profile" entity).
+  - A Client needing multiple exported configs for different environments (e.g. split-tunnel vs full-tunnel) gets this via either multiple `connections` entries (each pointing at a different AllowedIpsSet), or an export-time `allowed_ips_override` on a single interface's export (no separate stored "profile" entity).
 
 ## Tunnel file generation (`wg-quick` `.conf` format)
 
-**Host config:**
+Configs are generated **per interface**, not per Host/Client. Each network membership
+(`networkMemberships` entry) is treated as one WireGuard interface — assumption: one
+IP/network = one interface — so a Host or Client belonging to N networks has N
+independently-exportable `.conf` files, each with a single `[Interface]` `Address` line
+and only the `[Peer]` blocks relevant to that one network. There is no combined
+"everything this Host/Client is attached to" config.
+
+- `app/services/tunnel.py`: `render_host_interface_config(host_id, network_id)` and
+  `render_client_interface_config(client_id, network_id, allowed_ips_override=None)`
+  each build exactly one interface's config, given the owning Host/Client and the
+  Network whose membership identifies the interface. Both raise `ValueError` if the
+  Host/Client isn't a member of that Network.
+- Routes: `GET /hosts/<host_id>/config/<network_id>` and
+  `GET /clients/<client_id>/config/<network_id>` (both support `?download=1` for an
+  attachment response instead of inline `text/plain`; the download filename is
+  `f"{name}-{interface_name}.conf"`, falling back to the raw `network_id` string if the
+  membership has no `interfaceName`).
+
+**Host interface config** — filters to only the Client connections and Host
+`peerConnections` whose `networkId` matches this interface's network:
 ```
 [Interface]
 PrivateKey = <host private key>
-Address = <ip/prefix>, ...   # one per network membership
+Address = <this membership's ip>/<prefixlen>
 ListenPort = <listenPort>
 
-[Peer]   # one per attached Client
+[Peer]   # one per Client connected to the Host on THIS network
 PublicKey = <client public key>
 AllowedIPs = <client ip>/32
 PersistentKeepalive = <if set>
 
-[Peer]   # one per Host-Host connection
+[Peer]   # one per Host-Host peerConnection on THIS network
 PublicKey = <peer host public key>
 Endpoint = <computed as peer hostname:listenPort, or endpointOverride if set>
 AllowedIPs = <per-connection allowedIps>
 ```
 
-**Client config:**
+**Client interface config** — includes every `connections` entry whose `networkId`
+matches this interface's network; this can be zero, one, or more than one `[Peer]`
+block (e.g. two Hosts on the same Network for redundancy):
 ```
 [Interface]
 PrivateKey = <client private key>
-Address = <ip/prefix>, ...
+Address = <this membership's ip>/<prefixlen>
 DNS = <if set>
 
-[Peer]   # one per Host connection
+[Peer]   # one per Host connection on THIS network (may repeat)
 PublicKey = <host public key>
 Endpoint = <computed as host hostname:listenPort, if both set>
 AllowedIPs = <per-connection allowedIps, default = network CIDR>
 PersistentKeepalive = 10   # default, editable
 ```
 
-Export UI lets the user copy or download the generated file, with an option to
-override `AllowedIPs` at export time without necessarily persisting the override.
+Export UI lets the user copy or download the generated file, with an option to override
+`AllowedIPs` at export time without necessarily persisting the override
+(`allowed_ips_override` query param). Because an interface's export can contain multiple
+`[Peer]` blocks, this override — when supplied — is applied to *every* peer block's
+`AllowedIPs` line in that interface's export, not just a single connection's.
 
 ## Visual/UI conventions
 

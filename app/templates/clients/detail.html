@@ -49,34 +49,45 @@
 </table>
 <a class="btn btn-sm btn-primary" href="{{ url_for('clients.add_network_membership', client_id=client._id) }}">Add Network Membership</a>
 
-<h3 class="mt-4">Connections (to Hosts)</h3>
-<table class="table">
-  <thead><tr><th>Host</th><th>Network</th><th>AllowedIPs</th><th>PersistentKeepalive</th><th></th></tr></thead>
-  <tbody>
-    {% for item in connections %}
-    <tr>
-      <td>{% if item.host %}<a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-server"></i> {{ item.host.name }}</a>{% else %}(deleted host){% endif %}</td>
-      <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
-      <td>
-        {% set aset = allowed_ips_sets.get(item.connection.allowed_ips_set_id) %}
-        {{ aset.name ~ " (" ~ aset.cidrs ~ ")" if aset else "-" }}
-      </td>
-      <td>{{ item.connection.persistent_keepalive or "-" }}</td>
-      <td>
-        <a href="{{ url_for('clients.config', client_id=client._id, index=item.index) }}" target="_blank">View Config</a>
-        &middot;
-        <a href="{{ url_for('clients.config', client_id=client._id, index=item.index, download=1) }}">Download</a>
-        &middot;
-        <form method="post" action="{{ url_for('clients.remove_connection', client_id=client._id, index=item.index) }}" class="d-inline" onsubmit="return confirm('Remove this connection?');">
-          <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5">No connections yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<h3 class="mt-4">Connections (to Hosts), by interface</h3>
+{% for iface in interfaces %}
+<div class="card mb-3">
+  <div class="card-header d-flex justify-content-between align-items-center">
+    <div>
+      {% if iface.network %}<a href="{{ url_for('networks.view_network', network_id=iface.membership.network_id) }}"><i class="bi bi-diagram-3"></i> {{ iface.network.name }}</a>{% else %}{{ iface.membership.network_id }}{% endif %}
+      &mdash; interface <code>{{ iface.interface_name }}</code> &mdash; <code>{{ iface.membership.ip }}</code>
+    </div>
+    <div>
+      <a class="btn btn-sm btn-secondary" href="{{ url_for('clients.config', client_id=client._id, network_id=iface.membership.network_id) }}" target="_blank">View Config</a>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('clients.config', client_id=client._id, network_id=iface.membership.network_id, download=1) }}">Download</a>
+    </div>
+  </div>
+  <table class="table mb-0">
+    <thead><tr><th>Host</th><th>AllowedIPs</th><th>PersistentKeepalive</th><th></th></tr></thead>
+    <tbody>
+      {% for item in iface.connections %}
+      <tr>
+        <td>{% if item.host %}<a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-server"></i> {{ item.host.name }}</a>{% else %}(deleted host){% endif %}</td>
+        <td>
+          {% set aset = allowed_ips_sets.get(item.connection.allowed_ips_set_id) %}
+          {{ aset.name ~ " (" ~ aset.cidrs ~ ")" if aset else "-" }}
+        </td>
+        <td>{{ item.connection.persistent_keepalive or "-" }}</td>
+        <td>
+          <form method="post" action="{{ url_for('clients.remove_connection', client_id=client._id, index=item.index) }}" class="d-inline" onsubmit="return confirm('Remove this connection?');">
+            <button type="submit" class="btn btn-link text-danger p-0">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No connections on this interface yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p>No network memberships — no interfaces to connect from.</p>
+{% endfor %}
 <a class="btn btn-sm btn-primary" href="{{ url_for('clients.add_connection', client_id=client._id) }}">Add Connection</a>
 {% endblock %}
 {% block extra_scripts %}

@@ -13,7 +13,7 @@ from app.hosts.forms import (
 )
 from app.keys.service import assign_key_to_owner, generate_and_store_key, key_usages, store_provided_key
 from app.services.graph import build_host_graph
-from app.services.tunnel import render_host_config
+from app.services.tunnel import render_host_interface_config
 from app.utils.crypto import decrypt_private_key, is_valid_wg_key
 from app.utils.ipam import ip_in_network
 
@@ -142,6 +142,14 @@ def detail(host_id):
 
     other_hosts = list(db.hosts.find({"_id": {"$ne": host["_id"]}}))
 
+    interfaces = []
+    for m in host.get("network_memberships", []):
+        interfaces.append({
+            "membership": m,
+            "network": networks.get(m["network_id"]),
+            "interface_name": m.get("interface_name") or "wg?",
+        })
+
     return render_template(
         "hosts/detail.html",
         host=host,
@@ -153,6 +161,7 @@ def detail(host_id):
         attached_clients=attached_clients,
         peer_hosts=peer_hosts,
         other_hosts=other_hosts,
+        interfaces=interfaces,
     )
 
 
@@ -385,17 +394,26 @@ def remove_peer_connection(host_id, peer_host_id, network_id):
     return redirect(url_for("hosts.detail", host_id=host_id))
 
 
-@bp.route("/<host_id>/config")
+@bp.route("/<host_id>/config/<network_id>")
 @login_required
-def config(host_id):
+def config(host_id, network_id):
     host = _find_host_or_404(host_id)
     if not host:
         flash("Host not found.", "danger")
         return redirect(url_for("hosts.list_hosts"))
 
-    text = render_host_config(host_id)
+    try:
+        text = render_host_interface_config(host_id, network_id)
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("hosts.detail", host_id=host_id))
+
     if request.args.get("download"):
-        filename = f"{host['name']}.conf"
+        interface_name = next(
+            (m.get("interface_name") for m in host.get("network_memberships", []) if m["network_id"] == network_id),
+            None,
+        ) or network_id
+        filename = f"{host['name']}-{interface_name}.conf"
         return Response(
             text,
             mimetype="text/plain",
