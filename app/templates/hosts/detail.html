@@ -1,10 +1,14 @@
 {% extends "base.html" %}
 {% block title %}{{ host.name }} - WireGuard Manager{% endblock %}
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/styles/vis-network.min.css" rel="stylesheet">
+{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h1>{{ host.name }}</h1>
+  <h1><i class="bi bi-server"></i> {{ host.name }}</h1>
   <div>
     <a class="btn btn-secondary" href="{{ url_for('hosts.edit_host', host_id=host._id) }}">Edit</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('hosts.assign_existing_key', host_id=host._id) }}">Assign Existing Key</a>
     <form method="post" action="{{ url_for('hosts.rotate_key', host_id=host._id) }}" class="d-inline" onsubmit="return confirm('Rotate key? Existing tunnel files will stop working.');">
       <button type="submit" class="btn btn-warning">Rotate Key</button>
     </form>
@@ -22,13 +26,16 @@
   <dt class="col-sm-2">Public Key</dt><dd class="col-sm-10"><code>{{ key.public_key if key else "-" }}</code></dd>
 </dl>
 
+<h3 class="mt-4">Connections Graph</h3>
+<div id="graph" style="height: 420px; border: 1px solid #dee2e6; border-radius: 4px;"></div>
+
 <h3 class="mt-4">Network Memberships</h3>
 <table class="table">
   <thead><tr><th>Network</th><th>IP</th><th></th></tr></thead>
   <tbody>
     {% for m in host.network_memberships %}
     <tr>
-      <td>{{ networks[m.network_id].name if m.network_id in networks else m.network_id }}</td>
+      <td><a href="{{ url_for('networks.view_network', network_id=m.network_id) }}"><i class="bi bi-diagram-3"></i> {{ networks[m.network_id].name if m.network_id in networks else m.network_id }}</a></td>
       <td><code>{{ m.ip }}</code></td>
       <td>
         <form method="post" action="{{ url_for('hosts.remove_network_membership', host_id=host._id, network_id=m.network_id) }}" onsubmit="return confirm('Remove this membership?');">
@@ -49,7 +56,7 @@
   <tbody>
     {% for item in attached_clients %}
     <tr>
-      <td><a href="{{ url_for('clients.detail', client_id=item.client._id) }}">{{ item.client.name }}</a></td>
+      <td><a href="{{ url_for('clients.detail', client_id=item.client._id) }}"><i class="bi bi-laptop"></i> {{ item.client.name }}</a></td>
       <td><code>{{ item.connection.allowed_ips }}</code></td>
       <td>{{ item.connection.persistent_keepalive or "-" }}</td>
     </tr>
@@ -65,7 +72,7 @@
   <tbody>
     {% for item in peer_hosts %}
     <tr>
-      <td><a href="{{ url_for('hosts.detail', host_id=item.host._id) }}">{{ item.host.name }}</a></td>
+      <td><a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-server"></i> {{ item.host.name }}</a></td>
       <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
       <td>{{ item.connection.endpoint_override or item.host.endpoint or "-" }}</td>
       <td><code>{{ item.connection.allowed_ips }}</code></td>
@@ -86,4 +93,21 @@
 <h3 class="mt-4">Tunnel Config</h3>
 <a class="btn btn-secondary" href="{{ url_for('hosts.config', host_id=host._id) }}" target="_blank">View Config</a>
 <a class="btn btn-primary" href="{{ url_for('hosts.config', host_id=host._id, download=1) }}">Download Config</a>
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+fetch("{{ url_for('hosts.graph_json', host_id=host._id) }}")
+  .then(r => r.json())
+  .then(data => {
+    const nodes = new vis.DataSet(data.nodes);
+    const edges = new vis.DataSet(data.edges);
+    new vis.Network(document.getElementById("graph"), {nodes, edges}, {
+      nodes: {font: {size: 14}},
+      edges: {font: {size: 11}, arrows: {to: {enabled: true, scaleFactor: 0.5}}},
+      physics: {stabilization: true},
+      layout: {improvedLayout: true}
+    });
+  });
+</script>
 {% endblock %}

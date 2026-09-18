@@ -42,6 +42,12 @@
       {{ form.private_key.label(class="form-label") }}
       {{ form.private_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
     </div>
+    {% if form.existing_key_id.choices %}
+    <div class="mb-3">
+      {{ form.existing_key_id.label(class="form-label") }}
+      {{ form.existing_key_id(class="form-select") }}
+    </div>
+    {% endif %}
   </fieldset>
   {% endif %}
 

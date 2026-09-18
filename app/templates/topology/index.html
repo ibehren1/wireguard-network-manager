@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Topology - WireGuard Manager{% endblock %}
+{% block extra_head %}
+<link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/styles/vis-network.min.css" rel="stylesheet">
+{% endblock %}
+{% block content %}
+<h1 class="mb-4">Topology</h1>
+<p class="text-muted">
+  <span class="badge" style="background:#0d6efd;">&nbsp;&nbsp;</span> Host &nbsp;
+  <span class="badge" style="background:#198754;">&nbsp;&nbsp;</span> Client &nbsp;
+  <span class="badge" style="background:#6c757d;">&nbsp;&nbsp;</span> Network &nbsp;
+  Dashed lines are network memberships; solid arrows are Client&rarr;Host or Host&harr;Host connections.
+</p>
+<div id="graph" style="height: 650px; border: 1px solid #dee2e6; border-radius: 4px;"></div>
+{% endblock %}
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+<script>
+fetch("{{ url_for('topology.graph_json') }}")
+  .then(r => r.json())
+  .then(data => {
+    const nodes = new vis.DataSet(data.nodes);
+    const edges = new vis.DataSet(data.edges);
+    new vis.Network(document.getElementById("graph"), {nodes, edges}, {
+      nodes: {font: {size: 14}},
+      edges: {font: {size: 11}, arrows: {to: {enabled: true, scaleFactor: 0.5}}},
+      physics: {stabilization: true},
+      layout: {improvedLayout: true}
+    });
+  });
+</script>
+{% endblock %}

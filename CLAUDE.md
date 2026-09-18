@@ -25,6 +25,15 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
   displaying to the user.
 - One **active** key per Host/Client at a time. Rotating generates a new key; old
   keys kept in DB with `active=false` (history, not deleted).
+- Keys can also be created standalone with no owner (`owner_type`/`owner_id` both
+  `None`, `active=False`) via the Keys page (`/keys/new`, generate or paste), then
+  assigned later to a Host or Client "at will" — either from the Keys list
+  (`/keys/<id>/assign`), from a Host/Client's create form (`key_source=existing`),
+  or by swapping a Host/Client's current key from its detail page
+  (`/hosts/<id>/assign-key`, `/clients/<id>/assign-key`). Assigning retires
+  whatever active key the target currently has (kept as history) and makes the
+  chosen key active. Only never-assigned (`owner_type is None`) keys can be
+  deleted.
 
 ## IPAM
 
@@ -43,7 +52,7 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 ## Data model
 
 **WireGuardKey**
-- `publicKey`, `privateKey` (Fernet-encrypted), `createdAt`, `ownerType` (`host`/`client`), `ownerId`, `active`.
+- `publicKey`, `privateKey` (Fernet-encrypted), `createdAt`, `ownerType` (`host`/`client`/`None`), `ownerId` (`None` when unassigned), `active`.
 
 **WireGuardNetwork**
 - `name`, `cidr` (IPv4), `description`.
@@ -99,6 +108,26 @@ PersistentKeepalive = 10   # default, editable
 
 Export UI lets the user copy or download the generated file, with an option to
 override `AllowedIPs` at export time without necessarily persisting the override.
+
+## Visual/UI conventions
+
+- Icons (Bootstrap Icons via CDN): Hosts = `bi-server`, Clients = `bi-laptop`,
+  Networks = `bi-diagram-3`. Used consistently in tables and links across
+  Networks/Hosts/Clients/Keys pages so entity type is recognizable at a glance.
+- **Network detail page** (`/networks/<id>`): lists every address in the CIDR
+  (IP column + Host/Client column with icon, name, and a link to that entity's
+  detail page; unassigned addresses show "free"). Capped at 1024 addresses for
+  a full listing — larger networks (e.g. a /16) fall back to showing assigned
+  IPs only, since enumerating every address wouldn't be useful anyway.
+- **Topology graphs** (`vis-network` via CDN, no build step): a global graph at
+  `/topology` (all Networks/Hosts/Clients and their relationships), plus a
+  focused one-hop-neighborhood graph embedded on each Host's and Client's
+  detail page (`/hosts/<id>/graph.json`, `/clients/<id>/graph.json`,
+  `/topology/graph.json` feed the respective `<div id="graph">`). Node
+  shape/color convention: Host = blue box, Client = green ellipse, Network =
+  gray diamond. Edges: dashed gray = network membership, solid green arrow =
+  Client→Host connection, solid blue double-arrow = Host↔Host peer connection.
+  Graph-building logic lives in `app/services/graph.py`.
 
 ## Docker packaging
 

@@ -1,12 +1,13 @@
 from bson import ObjectId
-from flask import Response, flash, redirect, render_template, request, url_for
+from flask import Response, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from app.clients import bp
-from app.clients.forms import ClientConnectionForm, ClientCreateForm, ClientForm
+from app.clients.forms import AssignExistingKeyForm, ClientConnectionForm, ClientCreateForm, ClientForm
 from app.extensions import get_db
 from app.hosts.forms import NetworkMembershipForm
-from app.keys.service import deactivate_key, generate_and_store_key, store_provided_key
+from app.keys.service import assign_key_to_owner, deactivate_key, generate_and_store_key, store_provided_key
+from app.services.graph import build_client_graph
 from app.services.tunnel import render_client_config
 from app.utils.crypto import is_valid_wg_key, keypair_matches
 from app.utils.ipam import ip_in_network
@@ -20,6 +21,13 @@ def _membership_ip(memberships, network_id):
     return next((m["ip"] for m in memberships if m["network_id"] == network_id), None)
 
 
+def _unassigned_key_choices(db):
+    return [
+        (str(k["_id"]), k["public_key"])
+        for k in db.keys.find({"owner_type": None}).sort("created_at", -1)
+    ]
+
+
 @bp.route("/")
 @login_required
 def list_clients():
@@ -31,6 +39,7 @@ def list_clients():
 @login_required
 def create_client():
     form = ClientCreateForm()
+    form.existing_key_id.choices = _unassigned_key_choices(get_db())
     if form.validate_on_submit():
         if form.key_source.data == "provide":
             public_key = (form.public_key.data or "").strip()
@@ -41,6 +50,9 @@ def create_client():
             if not keypair_matches(public_key, private_key):
                 flash("Provided public key does not match the private key.", "danger")
                 return render_template("clients/form.html", form=form, title="New Client")
+        elif form.key_source.data == "existing" and not form.existing_key_id.data:
+            flash("Choose an unassigned key.", "danger")
+            return render_template("clients/form.html", form=form, title="New Client")
 
         client_doc = {
             "name": form.name.data,
@@ -53,9 +65,12 @@ def create_client():
 
         if form.key_source.data == "provide":
             key_id = store_provided_key("client", client_id, public_key, private_key)
+            get_db().clients.update_one({"_id": client_id}, {"$set": {"active_key_id": key_id}})
+        elif form.key_source.data == "existing":
+            assign_key_to_owner(form.existing_key_id.data, "client", client_id)
         else:
             key_id = generate_and_store_key("client", client_id)
-        get_db().clients.update_one({"_id": client_id}, {"$set": {"active_key_id": key_id}})
+            get_db().clients.update_one({"_id": client_id}, {"$set": {"active_key_id": key_id}})
 
         flash("Client created.", "success")
         return redirect(url_for("clients.detail", client_id=str(client_id)))
@@ -133,6 +148,25 @@ def rotate_key(client_id):
     get_db().clients.update_one({"_id": client["_id"]}, {"$set": {"active_key_id": new_key_id}})
     flash("Key rotated. Existing tunnel files using the old key will stop working.", "success")
     return redirect(url_for("clients.detail", client_id=client_id))
+
+
+@bp.route("/<client_id>/assign-key", methods=["GET", "POST"])
+@login_required
+def assign_existing_key(client_id):
+    db = get_db()
+    client = _find_client_or_404(client_id)
+    if not client:
+        return redirect(url_for("clients.list_clients"))
+
+    form = AssignExistingKeyForm()
+    form.existing_key_id.choices = _unassigned_key_choices(db)
+
+    if form.validate_on_submit():
+        assign_key_to_owner(form.existing_key_id.data, "client", client_id)
+        flash("Key assigned. Existing tunnel files using the old key will stop working.", "success")
+        return redirect(url_for("clients.detail", client_id=client_id))
+
+    return render_template("clients/assign_key_form.html", form=form, client=client)
 
 
 @bp.route("/<client_id>/networks/add", methods=["GET", "POST"])
@@ -269,3 +303,9 @@ def config(client_id, index):
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     return Response(text, mimetype="text/plain")
+
+
+@bp.route("/<client_id>/graph.json")
+@login_required
+def graph_json(client_id):
+    return jsonify(build_client_graph(client_id))

@@ -21,6 +21,7 @@ def create_app():
     from app.keys import bp as keys_bp
     from app.main import bp as main_bp
     from app.networks import bp as networks_bp
+    from app.topology import bp as topology_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -28,6 +29,7 @@ def create_app():
     app.register_blueprint(hosts_bp)
     app.register_blueprint(clients_bp)
     app.register_blueprint(keys_bp)
+    app.register_blueprint(topology_bp)
 
     from app.bootstrap import ensure_admin_user
 

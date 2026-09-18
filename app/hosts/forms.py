@@ -16,11 +16,20 @@ class HostForm(FlaskForm):
 class HostCreateForm(HostForm):
     key_source = RadioField(
         "Key",
-        choices=[("generate", "Generate a new keypair"), ("provide", "Provide an existing keypair")],
+        choices=[
+            ("generate", "Generate a new keypair"),
+            ("provide", "Provide an existing keypair"),
+            ("existing", "Use an existing unassigned key"),
+        ],
         default="generate",
     )
     public_key = StringField("Public Key", validators=[Optional()])
     private_key = StringField("Private Key", validators=[Optional()])
+    existing_key_id = SelectField("Unassigned Key", validators=[Optional()])
+
+
+class AssignExistingKeyForm(FlaskForm):
+    existing_key_id = SelectField("Unassigned Key", validators=[DataRequired()])
 
 
 class NetworkMembershipForm(FlaskForm):

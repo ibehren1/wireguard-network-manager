@@ -1,19 +1,9 @@
 {% extends "base.html" %}
-{% block title %}{{ title }} - WireGuard Manager{% endblock %}
+{% block title %}New Key - WireGuard Manager{% endblock %}
 {% block content %}
-<h1 class="mb-4">{{ title }}</h1>
+<h1 class="mb-4">New Key</h1>
 <form method="post" class="col-md-6">
   {{ form.hidden_tag() }}
-  <div class="mb-3">
-    {{ form.name.label(class="form-label") }}
-    {{ form.name(class="form-control") }}
-  </div>
-  <div class="mb-3">
-    {{ form.dns.label(class="form-label") }}
-    {{ form.dns(class="form-control") }}
-  </div>
-
-  {% if form.key_source is defined %}
   <fieldset class="mb-3 border p-3">
     <legend>Key</legend>
     {% for subfield in form.key_source %}
@@ -30,16 +20,8 @@
       {{ form.private_key.label(class="form-label") }}
       {{ form.private_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
     </div>
-    {% if form.existing_key_id.choices %}
-    <div class="mb-3">
-      {{ form.existing_key_id.label(class="form-label") }}
-      {{ form.existing_key_id(class="form-select") }}
-    </div>
-    {% endif %}
   </fieldset>
-  {% endif %}
-
-  <button type="submit" class="btn btn-primary">Save</button>
-  <a class="btn btn-secondary" href="{{ url_for('clients.list_clients') }}">Cancel</a>
+  <button type="submit" class="btn btn-primary">Create</button>
+  <a class="btn btn-secondary" href="{{ url_for('keys.list_keys') }}">Cancel</a>
 </form>
 {% endblock %}

@@ -9,6 +9,8 @@ from app.networks import bp
 from app.networks.forms import NetworkForm
 from app.utils.ipam import next_free_ip, parse_network
 
+MAX_FULL_TABLE_SIZE = 1024
+
 
 def _overlaps_existing(cidr, exclude_id=None):
     network = ipaddress.ip_network(cidr, strict=True)
@@ -36,6 +38,21 @@ def _used_ips(network_id):
 
 def _used_ip_count(network_id):
     return len(_used_ips(network_id))
+
+
+def _assignments(network_id):
+    db = get_db()
+    nid = str(network_id)
+    assignments = {}
+    for doc in db.hosts.find({"network_memberships.network_id": nid}):
+        for m in doc["network_memberships"]:
+            if m["network_id"] == nid:
+                assignments[m["ip"]] = {"type": "host", "id": str(doc["_id"]), "name": doc["name"]}
+    for doc in db.clients.find({"network_memberships.network_id": nid}):
+        for m in doc["network_memberships"]:
+            if m["network_id"] == nid:
+                assignments[m["ip"]] = {"type": "client", "id": str(doc["_id"]), "name": doc["name"]}
+    return assignments
 
 
 @bp.route("/")
@@ -120,6 +137,34 @@ def delete_network(network_id):
     get_db().networks.delete_one({"_id": ObjectId(network_id)})
     flash("Network deleted.", "success")
     return redirect(url_for("networks.list_networks"))
+
+
+@bp.route("/<network_id>")
+@login_required
+def view_network(network_id):
+    db = get_db()
+    net = db.networks.find_one({"_id": ObjectId(network_id)})
+    if not net:
+        flash("Network not found.", "danger")
+        return redirect(url_for("networks.list_networks"))
+
+    network = ipaddress.ip_network(net["cidr"], strict=True)
+    assignments = _assignments(network_id)
+
+    rows = None
+    truncated = False
+    if network.num_addresses <= MAX_FULL_TABLE_SIZE:
+        rows = [{"ip": str(ip), "assignment": assignments.get(str(ip))} for ip in network.hosts()]
+    else:
+        truncated = True
+        rows = [
+            {"ip": ip, "assignment": assignment}
+            for ip, assignment in sorted(assignments.items(), key=lambda kv: ipaddress.ip_address(kv[0]))
+        ]
+
+    return render_template(
+        "networks/detail.html", network=net, rows=rows, truncated=truncated, assigned_count=len(assignments)
+    )
 
 
 @bp.route("/<network_id>/next-free-ip")

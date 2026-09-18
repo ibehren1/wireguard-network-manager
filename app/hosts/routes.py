@@ -1,11 +1,18 @@
 from bson import ObjectId
-from flask import Response, flash, redirect, render_template, request, url_for
+from flask import Response, flash, jsonify, redirect, render_template, request, url_for
 from flask_login import login_required
 
 from app.extensions import get_db
 from app.hosts import bp
-from app.hosts.forms import HostCreateForm, HostForm, HostPeerConnectionForm, NetworkMembershipForm
-from app.keys.service import deactivate_key, generate_and_store_key, store_provided_key
+from app.hosts.forms import (
+    AssignExistingKeyForm,
+    HostCreateForm,
+    HostForm,
+    HostPeerConnectionForm,
+    NetworkMembershipForm,
+)
+from app.keys.service import assign_key_to_owner, deactivate_key, generate_and_store_key, store_provided_key
+from app.services.graph import build_host_graph
 from app.services.tunnel import render_host_config
 from app.utils.crypto import is_valid_wg_key, keypair_matches
 from app.utils.ipam import ip_in_network
@@ -19,6 +26,13 @@ def _membership_ip(memberships, network_id):
     return next((m["ip"] for m in memberships if m["network_id"] == network_id), None)
 
 
+def _unassigned_key_choices(db):
+    return [
+        (str(k["_id"]), k["public_key"])
+        for k in db.keys.find({"owner_type": None}).sort("created_at", -1)
+    ]
+
+
 @bp.route("/")
 @login_required
 def list_hosts():
@@ -30,6 +44,7 @@ def list_hosts():
 @login_required
 def create_host():
     form = HostCreateForm()
+    form.existing_key_id.choices = _unassigned_key_choices(get_db())
     if form.validate_on_submit():
         if form.key_source.data == "provide":
             public_key = (form.public_key.data or "").strip()
@@ -40,6 +55,9 @@ def create_host():
             if not keypair_matches(public_key, private_key):
                 flash("Provided public key does not match the private key.", "danger")
                 return render_template("hosts/form.html", form=form, title="New Host")
+        elif form.key_source.data == "existing" and not form.existing_key_id.data:
+            flash("Choose an unassigned key.", "danger")
+            return render_template("hosts/form.html", form=form, title="New Host")
 
         host_doc = {
             "name": form.name.data,
@@ -55,9 +73,12 @@ def create_host():
 
         if form.key_source.data == "provide":
             key_id = store_provided_key("host", host_id, public_key, private_key)
+            get_db().hosts.update_one({"_id": host_id}, {"$set": {"active_key_id": key_id}})
+        elif form.key_source.data == "existing":
+            assign_key_to_owner(form.existing_key_id.data, "host", host_id)
         else:
             key_id = generate_and_store_key("host", host_id)
-        get_db().hosts.update_one({"_id": host_id}, {"$set": {"active_key_id": key_id}})
+            get_db().hosts.update_one({"_id": host_id}, {"$set": {"active_key_id": key_id}})
 
         flash("Host created.", "success")
         return redirect(url_for("hosts.detail", host_id=str(host_id)))
@@ -159,6 +180,25 @@ def rotate_key(host_id):
     get_db().hosts.update_one({"_id": host["_id"]}, {"$set": {"active_key_id": new_key_id}})
     flash("Key rotated. Existing tunnel files using the old key will stop working.", "success")
     return redirect(url_for("hosts.detail", host_id=host_id))
+
+
+@bp.route("/<host_id>/assign-key", methods=["GET", "POST"])
+@login_required
+def assign_existing_key(host_id):
+    db = get_db()
+    host = _find_host_or_404(host_id)
+    if not host:
+        return redirect(url_for("hosts.list_hosts"))
+
+    form = AssignExistingKeyForm()
+    form.existing_key_id.choices = _unassigned_key_choices(db)
+
+    if form.validate_on_submit():
+        assign_key_to_owner(form.existing_key_id.data, "host", host_id)
+        flash("Key assigned. Existing tunnel files using the old key will stop working.", "success")
+        return redirect(url_for("hosts.detail", host_id=host_id))
+
+    return render_template("hosts/assign_key_form.html", form=form, host=host)
 
 
 @bp.route("/<host_id>/networks/add", methods=["GET", "POST"])
@@ -314,3 +354,9 @@ def config(host_id):
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     return Response(text, mimetype="text/plain")
+
+
+@bp.route("/<host_id>/graph.json")
+@login_required
+def graph_json(host_id):
+    return jsonify(build_host_graph(host_id))

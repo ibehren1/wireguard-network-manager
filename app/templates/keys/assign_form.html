@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Assign Key - WireGuard Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4">Assign Key</h1>
+<p><code>{{ key.public_key }}</code></p>
+
+{% if not form.target.choices %}
+<p>No Hosts or Clients exist yet.</p>
+{% else %}
+<form method="post" class="col-md-6">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.target.label(class="form-label") }}
+    {{ form.target(class="form-select") }}
+    <div class="form-text">This replaces the target's current active key (which is kept as retired history).</div>
+  </div>
+  <button type="submit" class="btn btn-primary">Assign</button>
+  <a class="btn btn-secondary" href="{{ url_for('keys.list_keys') }}">Cancel</a>
+</form>
+{% endif %}
+{% endblock %}
