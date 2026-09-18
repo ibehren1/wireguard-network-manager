@@ -209,37 +209,63 @@ def build_host_graph(host_id):
     allowed_ips_by_id = {str(a["_id"]): a for a in db.allowed_ips.find()}
 
     memberships = host.get("network_memberships", [])
+    host_network_ids = {m["network_id"] for m in memberships}
+    peer_connections = host.get("peer_connections", [])
+
+    # A network is "host-to-host" if it's the network_id of at least one of this
+    # host's peer connections (a P2P link runs over it). Everything else the host
+    # belongs to is a "regular" network (LAN-style, with Clients on it).
+    host_to_host_network_ids = {
+        pconn["network_id"] for pconn in peer_connections if pconn["network_id"] in host_network_ids
+    }
+    regular_network_ids = host_network_ids - host_to_host_network_ids
+
     network_docs = []
     for m in memberships:
         net = db.networks.find_one({"_id": ObjectId(m["network_id"])})
         if net:
             network_docs.append(net)
-    network_levels, network_parents = _network_hierarchy(network_docs)
+    hth_network_docs = [n for n in network_docs if str(n["_id"]) in host_to_host_network_ids]
+    regular_network_docs = [n for n in network_docs if str(n["_id"]) in regular_network_ids]
 
-    host_level = _member_level([m["network_id"] for m in memberships], network_levels)
-    nodes = [_host_node(host, host_level)]
+    # Hosts + host-to-host networks all sit at level 0. Regular networks are
+    # nested below the host by CIDR-containment depth among themselves, shifted
+    # up by 1 so the shallowest regular network lands at level 1.
+    regular_levels_raw, regular_parents = _network_hierarchy(regular_network_docs)
+    regular_levels = {nid: level + 1 for nid, level in regular_levels_raw.items()}
+
+    nodes = [_host_node(host, 0)]
     edges = []
 
-    for net in network_docs:
+    for net in hth_network_docs:
+        nodes.append(_network_node(net, 0))
+    for net in regular_network_docs:
         nid = str(net["_id"])
-        nodes.append(_network_node(net, network_levels.get(nid, 0)))
-        parent_id = network_parents.get(nid)
+        nodes.append(_network_node(net, regular_levels.get(nid, 1)))
+        parent_id = regular_parents.get(nid)
         if parent_id:
             edges.append(_network_parent_edge(nid, parent_id))
     for m in memberships:
         edges.append(_membership_edge(f"host:{hid}", m["network_id"], m["ip"]))
 
     for client in db.clients.find({"connections.host_id": hid}):
-        for conn in client.get("connections", []):
-            if conn["host_id"] == hid:
-                nodes.append(_client_node(client, host_level + 1))
-                allowed = _resolve_allowed_ips(allowed_ips_by_id, conn.get("allowed_ips_set_id"))
-                edges.append(_connection_edge(str(client["_id"]), hid, allowed))
+        matching_conns = [conn for conn in client.get("connections", []) if conn["host_id"] == hid]
+        # Sits one level below whichever regular network its connection(s) to
+        # this host run over. Falls back to level 1 (just below the hosts) if
+        # none of those connections' networks are classified as regular for
+        # this host — e.g. tied in via a network classified as host-to-host,
+        # an unusual edge case.
+        conn_network_ids = [conn["network_id"] for conn in matching_conns]
+        client_level = _member_level(conn_network_ids, regular_levels)
+        for conn in matching_conns:
+            nodes.append(_client_node(client, client_level))
+            allowed = _resolve_allowed_ips(allowed_ips_by_id, conn.get("allowed_ips_set_id"))
+            edges.append(_connection_edge(str(client["_id"]), hid, allowed))
 
-    for pconn in host.get("peer_connections", []):
+    for pconn in peer_connections:
         peer = db.hosts.find_one({"_id": ObjectId(pconn["peer_host_id"])})
         if peer:
-            nodes.append(_host_node(peer, host_level))
+            nodes.append(_host_node(peer, 0))
             allowed = _resolve_allowed_ips(allowed_ips_by_id, pconn.get("allowed_ips_set_id"))
             edges.extend(_peer_edges(hid, pconn["peer_host_id"], pconn["network_id"], allowed))
 
@@ -261,7 +287,12 @@ def build_client_graph(client_id):
         net = db.networks.find_one({"_id": ObjectId(m["network_id"])})
         if net:
             network_docs.append(net)
-    network_levels, network_parents = _network_hierarchy(network_docs)
+    # Hosts the Client connects to sit at the top (level 0). The Client's own
+    # networks sit below the hosts (level 1, or deeper for nested CIDR
+    # hierarchy among them), and the Client sits one level below its
+    # network(s).
+    network_levels_raw, network_parents = _network_hierarchy(network_docs)
+    network_levels = {nid: level + 1 for nid, level in network_levels_raw.items()}
 
     client_level = _member_level([m["network_id"] for m in memberships], network_levels)
     nodes = [_client_node(client, client_level)]
@@ -269,7 +300,7 @@ def build_client_graph(client_id):
 
     for net in network_docs:
         nid = str(net["_id"])
-        nodes.append(_network_node(net, network_levels.get(nid, 0)))
+        nodes.append(_network_node(net, network_levels.get(nid, 1)))
         parent_id = network_parents.get(nid)
         if parent_id:
             edges.append(_network_parent_edge(nid, parent_id))
@@ -279,7 +310,7 @@ def build_client_graph(client_id):
     for conn in client.get("connections", []):
         host = db.hosts.find_one({"_id": ObjectId(conn["host_id"])})
         if host:
-            nodes.append(_host_node(host, client_level))
+            nodes.append(_host_node(host, 0))
             allowed = _resolve_allowed_ips(allowed_ips_by_id, conn.get("allowed_ips_set_id"))
             edges.append(_connection_edge(cid, conn["host_id"], allowed))
 
