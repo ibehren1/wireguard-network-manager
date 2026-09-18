@@ -21,8 +21,8 @@ def render_host_config(host_id):
     if not host:
         raise ValueError("Host not found")
 
-    key = db.keys.find_one({"_id": ObjectId(host["active_key_id"])})
-    private_key = decrypt_private_key(key["private_key"])
+    key = db.keys.find_one({"_id": ObjectId(host["active_key_id"])}) if host.get("active_key_id") else None
+    private_key = decrypt_private_key(key["private_key"]) if key and key.get("private_key") else ""
 
     lines = ["[Interface]", f"PrivateKey = {private_key}"]
     address = _address_lines(host.get("network_memberships", []), db)
@@ -36,7 +36,11 @@ def render_host_config(host_id):
         lines.append(f"MTU = {host['mtu']}")
 
     for client in db.clients.find({"connections.host_id": str(host["_id"])}):
-        client_key = db.keys.find_one({"_id": ObjectId(client["active_key_id"])})
+        client_key = (
+            db.keys.find_one({"_id": ObjectId(client["active_key_id"])})
+            if client.get("active_key_id")
+            else None
+        )
         for conn in client.get("connections", []):
             if conn["host_id"] != str(host["_id"]):
                 continue
@@ -47,8 +51,8 @@ def render_host_config(host_id):
             if not membership:
                 continue
             lines.append("")
-            lines.append(f"[Peer]  # Client: {client['name']}")
-            lines.append(f"PublicKey = {client_key['public_key']}")
+            lines.append(f"[Peer]  # Client: {client.get('name', '')}")
+            lines.append(f"PublicKey = {client_key.get('public_key', '') if client_key else ''}")
             lines.append(f"AllowedIPs = {membership['ip']}/32")
             if conn.get("persistent_keepalive"):
                 lines.append(f"PersistentKeepalive = {conn['persistent_keepalive']}")
@@ -57,10 +61,14 @@ def render_host_config(host_id):
         peer_host = db.hosts.find_one({"_id": ObjectId(pconn["peer_host_id"])})
         if not peer_host:
             continue
-        peer_key = db.keys.find_one({"_id": ObjectId(peer_host["active_key_id"])})
+        peer_key = (
+            db.keys.find_one({"_id": ObjectId(peer_host["active_key_id"])})
+            if peer_host.get("active_key_id")
+            else None
+        )
         lines.append("")
-        lines.append(f"[Peer]  # Host: {peer_host['name']}")
-        lines.append(f"PublicKey = {peer_key['public_key']}")
+        lines.append(f"[Peer]  # Host: {peer_host.get('name', '')}")
+        lines.append(f"PublicKey = {peer_key.get('public_key', '') if peer_key else ''}")
         endpoint = pconn.get("endpoint_override") or peer_host.get("endpoint")
         if endpoint:
             lines.append(f"Endpoint = {endpoint}")
@@ -77,8 +85,8 @@ def render_client_config(client_id, connection_index=None, allowed_ips_override=
     if not client:
         raise ValueError("Client not found")
 
-    key = db.keys.find_one({"_id": ObjectId(client["active_key_id"])})
-    private_key = decrypt_private_key(key["private_key"])
+    key = db.keys.find_one({"_id": ObjectId(client["active_key_id"])}) if client.get("active_key_id") else None
+    private_key = decrypt_private_key(key["private_key"]) if key and key.get("private_key") else ""
 
     lines = ["[Interface]", f"PrivateKey = {private_key}"]
     address = _address_lines(client.get("network_memberships", []), db)
@@ -95,10 +103,12 @@ def render_client_config(client_id, connection_index=None, allowed_ips_override=
         host = db.hosts.find_one({"_id": ObjectId(conn["host_id"])})
         if not host:
             continue
-        host_key = db.keys.find_one({"_id": ObjectId(host["active_key_id"])})
+        host_key = (
+            db.keys.find_one({"_id": ObjectId(host["active_key_id"])}) if host.get("active_key_id") else None
+        )
         lines.append("")
-        lines.append(f"[Peer]  # Host: {host['name']}")
-        lines.append(f"PublicKey = {host_key['public_key']}")
+        lines.append(f"[Peer]  # Host: {host.get('name', '')}")
+        lines.append(f"PublicKey = {host_key.get('public_key', '') if host_key else ''}")
         if host.get("endpoint"):
             lines.append(f"Endpoint = {host['endpoint']}")
         allowed = conn["allowed_ips"]

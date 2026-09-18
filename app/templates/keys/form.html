@@ -4,23 +4,15 @@
 <h1 class="mb-4">New Key</h1>
 <form method="post" class="col-md-6">
   {{ form.hidden_tag() }}
-  <fieldset class="mb-3 border p-3">
-    <legend>Key</legend>
-    {% for subfield in form.key_source %}
-      <div class="form-check">
-        {{ subfield(class="form-check-input") }}
-        {{ subfield.label(class="form-check-label") }}
-      </div>
-    {% endfor %}
-    <div class="mb-3 mt-3">
-      {{ form.public_key.label(class="form-label") }}
-      {{ form.public_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
-    </div>
-    <div class="mb-3">
-      {{ form.private_key.label(class="form-label") }}
-      {{ form.private_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
-    </div>
-  </fieldset>
+  <div class="mb-3">
+    {{ form.name.label(class="form-label") }}
+    {{ form.name(class="form-control") }}
+  </div>
+  <div class="mb-3">
+    {{ form.private_key.label(class="form-label") }}
+    {{ form.private_key(class="form-control", placeholder="leave blank to generate a new key") }}
+    <div class="form-text">Only the private key is needed — the public key is always derived from it.</div>
+  </div>
   <button type="submit" class="btn btn-primary">Create</button>
   <a class="btn btn-secondary" href="{{ url_for('keys.list_keys') }}">Cancel</a>
 </form>

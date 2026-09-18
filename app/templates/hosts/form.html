@@ -35,12 +35,9 @@
       </div>
     {% endfor %}
     <div class="mb-3 mt-3">
-      {{ form.public_key.label(class="form-label") }}
-      {{ form.public_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
-    </div>
-    <div class="mb-3">
       {{ form.private_key.label(class="form-label") }}
-      {{ form.private_key(class="form-control", placeholder="only needed if providing an existing keypair") }}
+      {{ form.private_key(class="form-control", placeholder="leave blank to generate a new key") }}
+      <div class="form-text">Only the private key is needed — the public key is always derived from it.</div>
     </div>
     {% if form.existing_key_id.choices %}
     <div class="mb-3">

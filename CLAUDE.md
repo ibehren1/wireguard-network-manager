@@ -23,17 +23,29 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 - Private keys encrypted at rest with **Fernet**, key from `ENCRYPTION_KEY` env var
   (separate from `SECRET_KEY`). Decrypt only when generating tunnel files or
   displaying to the user.
-- One **active** key per Host/Client at a time. Rotating generates a new key; old
-  keys kept in DB with `active=false` (history, not deleted).
-- Keys can also be created standalone with no owner (`owner_type`/`owner_id` both
-  `None`, `active=False`) via the Keys page (`/keys/new`, generate or paste), then
-  assigned later to a Host or Client "at will" — either from the Keys list
-  (`/keys/<id>/assign`), from a Host/Client's create form (`key_source=existing`),
-  or by swapping a Host/Client's current key from its detail page
-  (`/hosts/<id>/assign-key`, `/clients/<id>/assign-key`). Assigning retires
-  whatever active key the target currently has (kept as history) and makes the
-  chosen key active. Only never-assigned (`owner_type is None`) keys can be
-  deleted.
+- Every key has a required `name` (shown wherever a key is displayed, e.g.
+  `office-gw (Vr5M...)`, and used as the label in any dropdown that lists keys).
+- Only the private key is ever provided by a user — the public key is always
+  derived from it (`derive_public_key` in `app/utils/crypto.py`). Forms that let
+  you source a key (`app/keys/forms.py`, `app/hosts/forms.py`,
+  `app/clients/forms.py`) take a single optional `private_key` field: blank means
+  generate a new keypair, a provided value is validated with `is_valid_wg_key()`
+  and its public key derived. There is no "paste a public+private keypair" flow.
+- **No exclusive ownership.** A Key document has no owner/active fields — it's
+  just `{_id, name, public_key, private_key, created_at}`. "Usage" is derived,
+  not stored: a key is in use by every Host/Client whose `active_key_id` equals
+  that key's `_id` (zero, one, or many). Keys are created standalone via the Keys
+  page (`/keys/new`), then attached to a Host or Client "at will" — either from
+  the Keys list (`/keys/<id>/assign`), from a Host/Client's create form
+  (`key_source=existing`, listing all keys by name), or by swapping a Host/
+  Client's current key from its detail page (`/hosts/<id>/assign-key`,
+  `/clients/<id>/assign-key`). A key can be attached to more than one Host/Client
+  simultaneously ("while not ideal") — assigning a key that's already in use
+  elsewhere shows a warning ("This key is already used by: X, Y — it will now
+  also be used by Z. This isn't recommended...") but doesn't block it. Rotating a
+  Host/Client's key just generates a new key and repoints `active_key_id`; the
+  old key document is left alone (it may still be referenced by other Hosts/
+  Clients). A key can only be deleted once it has zero current usages.
 
 ## IPAM
 
@@ -52,7 +64,12 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 ## Data model
 
 **WireGuardKey**
-- `publicKey`, `privateKey` (Fernet-encrypted), `createdAt`, `ownerType` (`host`/`client`/`None`), `ownerId` (`None` when unassigned), `active`.
+- `name`, `publicKey`, `privateKey` (Fernet-encrypted), `createdAt`.
+- No owner/active fields — a key is not exclusively owned. It's "in use" by
+  every Host/Client whose `activeKeyId` points at it (derived via reverse
+  lookup, not stored on the key). Multiple Hosts/Clients may share a key (the UI
+  warns but doesn't block this); a key can only be deleted once nothing
+  references it.
 
 **WireGuardNetwork**
 - `name`, `cidr` (IPv4), `description`.

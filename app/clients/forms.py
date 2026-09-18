@@ -12,19 +12,17 @@ class ClientCreateForm(ClientForm):
     key_source = RadioField(
         "Key",
         choices=[
-            ("generate", "Generate a new keypair"),
-            ("provide", "Provide an existing keypair"),
-            ("existing", "Use an existing unassigned key"),
+            ("new", "Generate a new key (or provide a private key below)"),
+            ("existing", "Use an existing key"),
         ],
-        default="generate",
+        default="new",
     )
-    public_key = StringField("Public Key", validators=[Optional()])
-    private_key = StringField("Private Key", validators=[Optional()])
-    existing_key_id = SelectField("Unassigned Key", validators=[Optional()])
+    private_key = StringField("Private Key (optional)", validators=[Optional()])
+    existing_key_id = SelectField("Existing Key", validators=[Optional()])
 
 
 class AssignExistingKeyForm(FlaskForm):
-    existing_key_id = SelectField("Unassigned Key", validators=[DataRequired()])
+    existing_key_id = SelectField("Existing Key", validators=[DataRequired()])
 
 
 class ClientConnectionForm(FlaskForm):

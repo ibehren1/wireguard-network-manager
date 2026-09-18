@@ -2,7 +2,7 @@
 {% block title %}Assign Key - WireGuard Manager{% endblock %}
 {% block content %}
 <h1 class="mb-4">Assign Key</h1>
-<p><code>{{ key.public_key }}</code></p>
+<p>{{ key.get("name") or "(unnamed)" }} — <code>{{ key.get("public_key") or "-" }}</code></p>
 
 {% if not form.target.choices %}
 <p>No Hosts or Clients exist yet.</p>
@@ -12,7 +12,7 @@
   <div class="mb-3">
     {{ form.target.label(class="form-label") }}
     {{ form.target(class="form-select") }}
-    <div class="form-text">This replaces the target's current active key (which is kept as retired history).</div>
+    <div class="form-text">This replaces the target's current active key. The old key is left in the system in case it's still used elsewhere.</div>
   </div>
   <button type="submit" class="btn btn-primary">Assign</button>
   <a class="btn btn-secondary" href="{{ url_for('keys.list_keys') }}">Cancel</a>

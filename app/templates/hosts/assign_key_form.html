@@ -4,14 +4,14 @@
 <h1 class="mb-4">Assign Existing Key to {{ host.name }}</h1>
 
 {% if not form.existing_key_id.choices %}
-<p>No unassigned keys exist. <a href="{{ url_for('keys.create_key') }}">Create one</a> first.</p>
+<p>No keys exist yet. <a href="{{ url_for('keys.create_key') }}">Create one</a> first.</p>
 {% else %}
 <form method="post" class="col-md-6">
   {{ form.hidden_tag() }}
   <div class="mb-3">
     {{ form.existing_key_id.label(class="form-label") }}
     {{ form.existing_key_id(class="form-select") }}
-    <div class="form-text">This replaces {{ host.name }}'s current active key (kept as retired history).</div>
+    <div class="form-text">This replaces {{ host.name }}'s current active key. A key can be used by more than one Host/Client, though that isn't recommended.</div>
   </div>
   <button type="submit" class="btn btn-primary">Assign</button>
   <a class="btn btn-secondary" href="{{ url_for('hosts.detail', host_id=host._id) }}">Cancel</a>
