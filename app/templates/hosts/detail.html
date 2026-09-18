@@ -34,7 +34,7 @@
       {% if item.interface_type == "client_non_wg" %}
       <td>-</td>
       {% else %}
-      <td>{% if item.key %}<a href="{{ url_for('keys.edit_key', key_id=item.key._id) }}">{{ item.key.get("name") or "(unnamed)" }}</a>{% else %}-{% endif %}</td>
+      <td>{% if item.key %}<a href="{{ url_for('keys.edit_key', key_id=item.key._id) }}"><i class="bi bi-key"></i> {{ item.key.get("name") or "(unnamed)" }}</a>{% else %}-{% endif %}</td>
       {% endif %}
       <td>
         <a class="btn btn-link p-0" href="{{ url_for('hosts.edit_interface', host_id=host._id, network_id=item.membership.network_id) }}">Edit</a>

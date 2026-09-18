@@ -2,7 +2,7 @@
 {% block title %}Keys - WireGuard Network Manager{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h1>Keys</h1>
+  <h1><i class="bi bi-key"></i> Keys</h1>
   <a class="btn btn-primary" href="{{ url_for('keys.create_key') }}">New Key</a>
 </div>
 <p class="text-muted">Keys are generated/rotated from a Host's or Client's detail page, or created here on their own and assigned later. A key can be used by more than one Host/Client, though that isn't recommended.</p>
@@ -11,7 +11,7 @@
   <tbody>
     {% for key in keys %}
     <tr>
-      <td><a href="{{ url_for('keys.edit_key', key_id=key._id) }}">{{ key.get("name") or "(unnamed)" }}</a></td>
+      <td><a href="{{ url_for('keys.edit_key', key_id=key._id) }}"><i class="bi bi-key"></i> {{ key.get("name") or "(unnamed)" }}</a></td>
       <td>
         {% set usages = key.get("usages") or [] %}
         {% if usages %}
