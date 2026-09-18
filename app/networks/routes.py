@@ -13,6 +13,8 @@ MAX_FULL_TABLE_SIZE = 1024
 
 
 def _overlaps_existing(cidr, exclude_id=None):
+    """Block ambiguous partial overlaps, but allow proper subnetting (one
+    network fully containing another, e.g. a /30 inside a /24)."""
     network = ipaddress.ip_network(cidr, strict=True)
     db = get_db()
     query = {}
@@ -20,9 +22,24 @@ def _overlaps_existing(cidr, exclude_id=None):
         query["_id"] = {"$ne": ObjectId(exclude_id)}
     for doc in db.networks.find(query):
         other = ipaddress.ip_network(doc["cidr"], strict=True)
-        if network.overlaps(other):
+        if network.overlaps(other) and not (network.subnet_of(other) or other.subnet_of(network)):
             return doc["name"]
     return None
+
+
+def _child_networks(db, cidr, exclude_id):
+    """Other defined networks fully contained within `cidr`, most specific first."""
+    parent = ipaddress.ip_network(cidr, strict=True)
+    children = []
+    for doc in db.networks.find({"_id": {"$ne": ObjectId(exclude_id)}}):
+        try:
+            child = ipaddress.ip_network(doc["cidr"], strict=True)
+        except ValueError:
+            continue
+        if child != parent and child.subnet_of(parent):
+            children.append((doc, child))
+    children.sort(key=lambda pair: pair[1].prefixlen, reverse=True)
+    return children
 
 
 def _used_ips(network_id):
@@ -150,20 +167,48 @@ def view_network(network_id):
 
     network = ipaddress.ip_network(net["cidr"], strict=True)
     assignments = _assignments(network_id)
+    children = _child_networks(db, net["cidr"], network_id)
+    child_assignments = [(doc, child, _assignments(doc["_id"])) for doc, child in children]
+    has_reserved = network.num_addresses >= 4
 
-    rows = None
-    truncated = False
-    if network.num_addresses <= MAX_FULL_TABLE_SIZE:
-        rows = [{"ip": str(ip), "assignment": assignments.get(str(ip))} for ip in network.hosts()]
+    def resolve(ip_addr, ip_str):
+        if ip_str in assignments:
+            return {"kind": assignments[ip_str]["type"], **assignments[ip_str]}
+        for doc, child, child_assign in child_assignments:
+            if ip_addr not in child:
+                continue
+            if ip_str in child_assign:
+                a = child_assign[ip_str]
+                return {"kind": a["type"], **a, "via_network": {"id": str(doc["_id"]), "name": doc["name"]}}
+            return {"kind": "subnet", "id": str(doc["_id"]), "name": doc["name"]}
+        return {"kind": "free"}
+
+    rows = []
+    truncated = network.num_addresses > MAX_FULL_TABLE_SIZE
+    if not truncated:
+        for ip_addr in network:
+            ip_str = str(ip_addr)
+            if has_reserved and ip_addr == network.network_address:
+                rows.append({"ip": ip_str, "kind": "reserved", "label": "Network"})
+            elif has_reserved and ip_addr == network.broadcast_address:
+                rows.append({"ip": ip_str, "kind": "reserved", "label": "Broadcast"})
+            else:
+                rows.append({"ip": ip_str, **resolve(ip_addr, ip_str)})
     else:
-        truncated = True
-        rows = [
-            {"ip": ip, "assignment": assignment}
-            for ip, assignment in sorted(assignments.items(), key=lambda kv: ipaddress.ip_address(kv[0]))
-        ]
+        combined = dict(assignments)
+        for doc, child, child_assign in child_assignments:
+            for ip_str, a in child_assign.items():
+                combined.setdefault(ip_str, {**a, "via_network": {"id": str(doc["_id"]), "name": doc["name"]}})
+        for ip_str, a in sorted(combined.items(), key=lambda kv: ipaddress.ip_address(kv[0])):
+            rows.append({"ip": ip_str, "kind": a["type"], **a})
 
     return render_template(
-        "networks/detail.html", network=net, rows=rows, truncated=truncated, assigned_count=len(assignments)
+        "networks/detail.html",
+        network=net,
+        rows=rows,
+        truncated=truncated,
+        assigned_count=len(assignments),
+        children=[{"id": str(doc["_id"]), "name": doc["name"], "cidr": doc["cidr"]} for doc, _ in children],
     )
 
 

@@ -10,25 +10,37 @@
   <dt class="col-sm-2">CIDR</dt><dd class="col-sm-10"><code>{{ network.cidr }}</code></dd>
   <dt class="col-sm-2">Description</dt><dd class="col-sm-10">{{ network.description or "-" }}</dd>
   <dt class="col-sm-2">Assigned IPs</dt><dd class="col-sm-10">{{ assigned_count }}</dd>
+  {% if children %}
+  <dt class="col-sm-2">Subnets</dt>
+  <dd class="col-sm-10">
+    {% for child in children %}
+      <a href="{{ url_for('networks.view_network', network_id=child.id) }}" class="me-3"><i class="bi bi-diagram-3"></i> {{ child.name }} (<code>{{ child.cidr }}</code>)</a>
+    {% endfor %}
+  </dd>
+  {% endif %}
 </dl>
 
 <h3 class="mt-4">Address Table</h3>
 {% if truncated %}
-<p class="text-muted">This network is too large to list every address; showing assigned IPs only.</p>
+<p class="text-muted">This network is too large to list every address; showing assigned IPs only (including those assigned via subnets of this network).</p>
 {% endif %}
 <table class="table table-sm">
   <thead><tr><th>IP</th><th>Host/Client</th></tr></thead>
   <tbody>
     {% for row in rows %}
-    <tr>
+    <tr class="{{ 'text-muted' if row.kind == 'reserved' else '' }}">
       <td><code>{{ row.ip }}</code></td>
       <td>
-        {% if row.assignment %}
-          {% if row.assignment.type == "host" %}
-            <a href="{{ url_for('hosts.detail', host_id=row.assignment.id) }}"><i class="bi bi-server"></i> {{ row.assignment.name }}</a>
-          {% else %}
-            <a href="{{ url_for('clients.detail', client_id=row.assignment.id) }}"><i class="bi bi-laptop"></i> {{ row.assignment.name }}</a>
-          {% endif %}
+        {% if row.kind == "reserved" %}
+          <em>{{ row.label }} (unusable)</em>
+        {% elif row.kind == "host" %}
+          <a href="{{ url_for('hosts.detail', host_id=row.id) }}"><i class="bi bi-server"></i> {{ row.name }}</a>
+          {% if row.via_network %}<span class="text-muted">via <a href="{{ url_for('networks.view_network', network_id=row.via_network.id) }}">{{ row.via_network.name }}</a></span>{% endif %}
+        {% elif row.kind == "client" %}
+          <a href="{{ url_for('clients.detail', client_id=row.id) }}"><i class="bi bi-laptop"></i> {{ row.name }}</a>
+          {% if row.via_network %}<span class="text-muted">via <a href="{{ url_for('networks.view_network', network_id=row.via_network.id) }}">{{ row.via_network.name }}</a></span>{% endif %}
+        {% elif row.kind == "subnet" %}
+          <a href="{{ url_for('networks.view_network', network_id=row.id) }}"><i class="bi bi-diagram-3"></i> part of subnet: {{ row.name }}</a>
         {% else %}
           <span class="text-muted">free</span>
         {% endif %}
