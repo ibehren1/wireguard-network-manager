@@ -9,7 +9,7 @@ from app.hosts.forms import NetworkMembershipForm
 from app.keys.service import assign_key_to_owner, generate_and_store_key, key_usages, store_provided_key
 from app.services.graph import build_client_graph
 from app.services.tunnel import render_client_config
-from app.utils.crypto import is_valid_wg_key
+from app.utils.crypto import decrypt_private_key, is_valid_wg_key
 from app.utils.ipam import ip_in_network
 
 
@@ -106,6 +106,7 @@ def detail(client_id):
 
     networks = {str(n["_id"]): n for n in db.networks.find()}
     key = db.keys.find_one({"_id": ObjectId(client["active_key_id"])}) if client.get("active_key_id") else None
+    private_key = decrypt_private_key(key["private_key"]) if key and key.get("private_key") else None
     dns_server = (
         db.dns_servers.find_one({"_id": ObjectId(client["dns_server_id"])})
         if client.get("dns_server_id")
@@ -123,6 +124,7 @@ def detail(client_id):
         client=client,
         networks=networks,
         key=key,
+        private_key=private_key,
         dns_server=dns_server,
         allowed_ips_sets=allowed_ips_sets,
         connections=connections,
