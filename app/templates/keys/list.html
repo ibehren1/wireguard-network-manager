@@ -30,7 +30,8 @@
       </td>
       <td>{{ key.get("created_at") }}</td>
       <td>
-        <a href="{{ url_for('keys.assign_key', key_id=key._id) }}">Assign</a>
+        <a href="{{ url_for('keys.edit_key', key_id=key._id) }}">Edit</a>
+        <a href="{{ url_for('keys.assign_key', key_id=key._id) }}" class="ms-2">Assign</a>
         {% if not usages %}
           <form method="post" action="{{ url_for('keys.delete_key', key_id=key._id) }}" class="d-inline" onsubmit="return confirm('Delete this key?');">
             <button type="submit" class="btn btn-link text-danger p-0 ms-2">Delete</button>

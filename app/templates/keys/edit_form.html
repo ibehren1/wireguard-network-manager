@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Edit Key - WireGuard Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4">Edit Key</h1>
+<form method="post" class="col-md-6">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.name.label(class="form-label") }}
+    {{ form.name(class="form-control") }}
+  </div>
+  <button type="submit" class="btn btn-primary">Save</button>
+  <a class="btn btn-secondary" href="{{ url_for('keys.list_keys') }}">Cancel</a>
+</form>
+{% endblock %}

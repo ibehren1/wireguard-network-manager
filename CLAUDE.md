@@ -25,6 +25,10 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
   displaying to the user.
 - Every key has a required `name` (shown wherever a key is displayed, e.g.
   `office-gw (Vr5M...)`, and used as the label in any dropdown that lists keys).
+  The name can be edited after creation via `/keys/<id>/edit`, regardless of
+  whether the key is in use — the keypair itself (`public_key`/`private_key`)
+  is immutable once created; there's no edit path for it, only rotate (Host/
+  Client detail page) or assign a different key.
 - Only the private key is ever provided by a user — the public key is always
   derived from it (`derive_public_key` in `app/utils/crypto.py`). Forms that let
   you source a key (`app/keys/forms.py`, `app/hosts/forms.py`,

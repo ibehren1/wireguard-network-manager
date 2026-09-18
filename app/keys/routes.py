@@ -4,7 +4,7 @@ from flask_login import login_required
 
 from app.extensions import get_db
 from app.keys import bp
-from app.keys.forms import KeyAssignForm, KeyCreateForm
+from app.keys.forms import KeyAssignForm, KeyCreateForm, KeyEditForm
 from app.keys.service import assign_key_to_owner, create_unassigned_key, delete_key_if_unused, key_usages
 from app.utils.crypto import is_valid_wg_key
 
@@ -71,6 +71,27 @@ def assign_key(key_id):
         return redirect(url_for("keys.list_keys"))
 
     return render_template("keys/assign_form.html", form=form, key=key)
+
+
+@bp.route("/<key_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_key(key_id):
+    db = get_db()
+    key = db.keys.find_one({"_id": ObjectId(key_id)})
+    if not key:
+        flash("Key not found.", "danger")
+        return redirect(url_for("keys.list_keys"))
+
+    form = KeyEditForm()
+    if form.validate_on_submit():
+        db.keys.update_one({"_id": ObjectId(key_id)}, {"$set": {"name": form.name.data}})
+        flash("Key updated.", "success")
+        return redirect(url_for("keys.list_keys"))
+
+    if not form.is_submitted():
+        form.name.data = key.get("name")
+
+    return render_template("keys/edit_form.html", form=form, key=key)
 
 
 @bp.route("/<key_id>/delete", methods=["POST"])

@@ -10,3 +10,7 @@ class KeyCreateForm(FlaskForm):
 
 class KeyAssignForm(FlaskForm):
     target = SelectField("Assign To", validators=[DataRequired()])
+
+
+class KeyEditForm(FlaskForm):
+    name = StringField("Name", validators=[DataRequired()])

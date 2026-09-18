@@ -76,7 +76,13 @@ def _assignments(network_id):
 @login_required
 def list_networks():
     db = get_db()
-    networks = list(db.networks.find().sort("name", 1))
+    networks = list(db.networks.find())
+    networks.sort(
+        key=lambda net: (
+            int(ipaddress.ip_network(net["cidr"], strict=True).network_address),
+            ipaddress.ip_network(net["cidr"], strict=True).prefixlen,
+        )
+    )
     for net in networks:
         net["used_count"] = _used_ip_count(net["_id"])
     return render_template("networks/list.html", networks=networks)
