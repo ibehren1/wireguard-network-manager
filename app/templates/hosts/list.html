@@ -6,12 +6,12 @@
   <a class="btn btn-primary" href="{{ url_for('hosts.create_host') }}">New Host</a>
 </div>
 <table class="table">
-  <thead><tr><th>Name</th><th>Endpoint</th><th>Listen Port</th><th>Networks</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Hostname</th><th>Listen Port</th><th>Networks</th><th></th></tr></thead>
   <tbody>
     {% for host in hosts %}
     <tr>
       <td><a href="{{ url_for('hosts.detail', host_id=host._id) }}">{{ host.name }}</a></td>
-      <td>{{ host.endpoint or "-" }}</td>
+      <td>{{ host.hostname or "-" }}</td>
       <td>{{ host.listen_port or "-" }}</td>
       <td>{{ host.network_memberships|length }}</td>
       <td>

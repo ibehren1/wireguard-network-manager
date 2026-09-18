@@ -5,7 +5,7 @@ from wtforms.validators import DataRequired, NumberRange, Optional
 
 class HostForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
-    endpoint = StringField("Endpoint (host:port, optional)", validators=[Optional()])
+    hostname = StringField("Hostname or IP (optional)", validators=[Optional()])
     listen_port = IntegerField(
         "Listen Port", validators=[Optional(), NumberRange(min=1, max=65535)]
     )

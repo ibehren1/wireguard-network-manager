@@ -4,6 +4,12 @@ from app.extensions import get_db
 from app.utils.crypto import decrypt_private_key
 
 
+def _computed_endpoint(host):
+    if host.get("hostname") and host.get("listen_port"):
+        return f"{host['hostname']}:{host['listen_port']}"
+    return None
+
+
 def _address_lines(memberships, db):
     parts = []
     for m in memberships:
@@ -61,7 +67,7 @@ def render_host_config(host_id):
         lines.append("")
         lines.append(f"[Peer]  # Host: {peer_host['name']}")
         lines.append(f"PublicKey = {peer_key['public_key']}")
-        endpoint = pconn.get("endpoint_override") or peer_host.get("endpoint")
+        endpoint = pconn.get("endpoint_override") or _computed_endpoint(peer_host)
         if endpoint:
             lines.append(f"Endpoint = {endpoint}")
         lines.append(f"AllowedIPs = {pconn['allowed_ips']}")
@@ -99,8 +105,9 @@ def render_client_config(client_id, connection_index=None, allowed_ips_override=
         lines.append("")
         lines.append(f"[Peer]  # Host: {host['name']}")
         lines.append(f"PublicKey = {host_key['public_key']}")
-        if host.get("endpoint"):
-            lines.append(f"Endpoint = {host['endpoint']}")
+        host_endpoint = _computed_endpoint(host)
+        if host_endpoint:
+            lines.append(f"Endpoint = {host_endpoint}")
         allowed = conn["allowed_ips"]
         if allowed_ips_override and connection_index is not None:
             allowed = allowed_ips_override

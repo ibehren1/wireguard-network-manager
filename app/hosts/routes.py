@@ -61,7 +61,7 @@ def create_host():
 
         host_doc = {
             "name": form.name.data,
-            "endpoint": form.endpoint.data or "",
+            "hostname": form.hostname.data or "",
             "listen_port": form.listen_port.data,
             "dns": form.dns.data or "",
             "mtu": form.mtu.data,
@@ -107,7 +107,13 @@ def detail(host_id):
     for pconn in host.get("peer_connections", []):
         peer_host = db.hosts.find_one({"_id": ObjectId(pconn["peer_host_id"])})
         if peer_host:
-            peer_hosts.append({"host": peer_host, "connection": pconn})
+            if pconn.get("endpoint_override"):
+                computed_endpoint = pconn["endpoint_override"]
+            elif peer_host.get("hostname") and peer_host.get("listen_port"):
+                computed_endpoint = f"{peer_host['hostname']}:{peer_host['listen_port']}"
+            else:
+                computed_endpoint = "-"
+            peer_hosts.append({"host": peer_host, "connection": pconn, "computed_endpoint": computed_endpoint})
 
     other_hosts = list(db.hosts.find({"_id": {"$ne": host["_id"]}}))
 
@@ -136,7 +142,7 @@ def edit_host(host_id):
             {"_id": host["_id"]},
             {"$set": {
                 "name": form.name.data,
-                "endpoint": form.endpoint.data or "",
+                "hostname": form.hostname.data or "",
                 "listen_port": form.listen_port.data,
                 "dns": form.dns.data or "",
                 "mtu": form.mtu.data,

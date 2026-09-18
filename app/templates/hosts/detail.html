@@ -19,7 +19,7 @@
 </div>
 
 <dl class="row">
-  <dt class="col-sm-2">Endpoint</dt><dd class="col-sm-10">{{ host.endpoint or "-" }}</dd>
+  <dt class="col-sm-2">Hostname</dt><dd class="col-sm-10">{{ host.hostname or "-" }}</dd>
   <dt class="col-sm-2">Listen Port</dt><dd class="col-sm-10">{{ host.listen_port or "-" }}</dd>
   <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ host.dns or "-" }}</dd>
   <dt class="col-sm-2">MTU</dt><dd class="col-sm-10">{{ host.mtu or "-" }}</dd>
@@ -74,7 +74,7 @@
     <tr>
       <td><a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-server"></i> {{ item.host.name }}</a></td>
       <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
-      <td>{{ item.connection.endpoint_override or item.host.endpoint or "-" }}</td>
+      <td>{{ item.computed_endpoint }}</td>
       <td><code>{{ item.connection.allowed_ips }}</code></td>
       <td>{{ item.connection.persistent_keepalive or "-" }}</td>
       <td>
