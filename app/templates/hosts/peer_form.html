@@ -20,8 +20,9 @@
     <div class="form-text">Must be a network both this host and the peer host belong to.</div>
   </div>
   <div class="mb-3">
-    {{ form.allowed_ips.label(class="form-label") }}
-    {{ form.allowed_ips(class="form-control", placeholder="e.g. 10.0.0.2/32") }}
+    {{ form.allowed_ips_set_id.label(class="form-label") }}
+    {{ form.allowed_ips_set_id(class="form-select") }}
+    <div class="form-text">Also used as the default for the reciprocal connection created on the peer host; edit it there afterward if needed. Manage sets on the <a href="{{ url_for('allowed_ips.list_allowed_ips_sets') }}">Allowed IPs</a> page.</div>
   </div>
   <div class="mb-3">
     {{ form.endpoint_override.label(class="form-label") }}

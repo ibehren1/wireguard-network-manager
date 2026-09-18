@@ -75,23 +75,52 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 - `name`, `cidr` (IPv4), `description`.
 - Pure IPAM pool; tracks which IPs in the CIDR are assigned to which Host/Client.
 
+**DnsServer**
+- `name`, `ips` — the raw comma-delimited string the user typed (e.g. `"1.1.1.1, 1.0.0.1"`),
+  stored verbatim since wg-quick's `DNS =` line already accepts a comma-separated list
+  directly. Validated at write time as a comma-separated list of valid IPv4 addresses
+  (`ipaddress.ip_address()` per entry after splitting/stripping).
+- Managed at `/dns-servers` (blueprint `app.dns_servers`, collection `dns_servers`).
+- Referenced by ID (not free text) from `WireGuardHost.dnsServerId` and
+  `WireGuardClient.dnsServerId` — nullable; a Host/Client with no DNS server set omits
+  the `DNS =` line from its generated config. Deleting a DnsServer is blocked while any
+  Host or Client still references it.
+
+**AllowedIpsSet**
+- `name`, `cidrs` — the raw comma-delimited string the user typed (e.g.
+  `"10.0.0.0/24, 192.168.1.0/24"` or `"0.0.0.0/0"` for full-tunnel), stored verbatim.
+  Validated at write time by parsing each comma-separated entry with
+  `ipaddress.ip_network(entry, strict=False)`.
+- Managed at `/allowed-ips` (blueprint `app.allowed_ips`, collection `allowed_ips`).
+- Referenced by ID (not free text) from each entry in `WireGuardClient.connections`
+  (`allowedIpsSetId`) and `WireGuardHost.peerConnections` (`allowedIpsSetId`) — required
+  on both. Deleting an AllowedIpsSet is blocked while any Client connection or Host peer
+  connection still references it.
+- The export-time `allowed_ips_override` query param on a Client's config endpoint
+  (`/clients/<id>/config/<index>?allowed_ips_override=...`) remains a raw string override
+  independent of this preset system, for ad-hoc one-off exports.
+
 **WireGuardHost**
 - `name`, `activeKeyId`, `hostname` (optional bare hostname/IP, no port, set when this
-  Host should be dialable), `listenPort`, `dns` (optional), `mtu` (optional). The peer
-  "Endpoint" value (`host:port`) is never stored directly — it's always computed as
-  `f"{hostname}:{listenPort}"` when both are set (a per-connection `endpointOverride`
-  can still override this at the connection level).
+  Host should be dialable), `listenPort`, `dnsServerId` (optional, references DnsServer),
+  `mtu` (optional). The peer "Endpoint" value (`host:port`) is never stored directly —
+  it's always computed as `f"{hostname}:{listenPort}"` when both are set (a
+  per-connection `endpointOverride` can still override this at the connection level).
 - `networkMemberships`: `[{networkId, ip}, ...]` — a Host can belong to multiple Networks, one IP per Network.
-- `peerConnections` (Host↔Host, for P2P links): `[{peerHostId, allowedIps, endpointOverride?, persistentKeepalive?}, ...]`.
+- `peerConnections` (Host↔Host, for P2P links): `[{peerHostId, allowedIpsSetId, endpointOverride?, persistentKeepalive?}, ...]`.
+  - When a peer connection is created, the reciprocal `peerConnections` entry pushed onto
+    the peer Host defaults to the SAME `allowedIpsSetId` the user picked for the primary
+    side (rather than auto-creating a `/32`-style preset) — edit it afterward via the
+    existing remove/re-add flow if a different value is needed on that side.
 - Serves as the peer target for any Clients attached to it.
 
 **WireGuardClient**
-- `name`, `activeKeyId`, `dns` (optional).
+- `name`, `activeKeyId`, `dnsServerId` (optional, references DnsServer).
 - `networkMemberships`: `[{networkId, ip}, ...]` — a Client can belong to multiple Networks.
-- `connections`: `[{hostId, allowedIps, persistentKeepalive}, ...]` — one entry per Host this Client connects to.
-  - `allowedIps` defaults to that Network's CIDR, overridable (e.g. `0.0.0.0/0` for full-tunnel).
+- `connections`: `[{hostId, allowedIpsSetId, persistentKeepalive}, ...]` — one entry per Host this Client connects to.
+  - `allowedIpsSetId` references an AllowedIpsSet (e.g. that Network's CIDR for split-tunnel, or a `0.0.0.0/0` set for full-tunnel).
   - `persistentKeepalive` defaults to `10`.
-  - A Client needing multiple exported configs for different environments (e.g. split-tunnel vs full-tunnel) gets this via either multiple `connections` entries, or an export-time `allowedIps` override on a single connection (no separate stored "profile" entity).
+  - A Client needing multiple exported configs for different environments (e.g. split-tunnel vs full-tunnel) gets this via either multiple `connections` entries (each pointing at a different AllowedIpsSet), or an export-time `allowed_ips_override` on a single connection (no separate stored "profile" entity).
 
 ## Tunnel file generation (`wg-quick` `.conf` format)
 

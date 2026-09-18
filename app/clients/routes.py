@@ -28,6 +28,19 @@ def _key_choices(db):
     ]
 
 
+def _dns_server_choices(db):
+    return [("", "None")] + [
+        (str(d["_id"]), d["name"]) for d in db.dns_servers.find().sort("name", 1)
+    ]
+
+
+def _allowed_ips_choices(db):
+    return [
+        (str(a["_id"]), f"{a['name']} ({a['cidrs']})")
+        for a in db.allowed_ips.find().sort("name", 1)
+    ]
+
+
 @bp.route("/")
 @login_required
 def list_clients():
@@ -40,6 +53,7 @@ def list_clients():
 def create_client():
     form = ClientCreateForm()
     form.existing_key_id.choices = _key_choices(get_db())
+    form.dns_server_id.choices = _dns_server_choices(get_db())
     if form.validate_on_submit():
         private_key = (form.private_key.data or "").strip()
         if form.key_source.data == "new" and private_key and not is_valid_wg_key(private_key):
@@ -51,7 +65,7 @@ def create_client():
 
         client_doc = {
             "name": form.name.data,
-            "dns": form.dns.data or "",
+            "dns_server_id": form.dns_server_id.data or None,
             "network_memberships": [],
             "connections": [],
             "active_key_id": None,
@@ -92,6 +106,12 @@ def detail(client_id):
 
     networks = {str(n["_id"]): n for n in db.networks.find()}
     key = db.keys.find_one({"_id": ObjectId(client["active_key_id"])}) if client.get("active_key_id") else None
+    dns_server = (
+        db.dns_servers.find_one({"_id": ObjectId(client["dns_server_id"])})
+        if client.get("dns_server_id")
+        else None
+    )
+    allowed_ips_sets = {str(a["_id"]): a for a in db.allowed_ips.find()}
 
     connections = []
     for idx, conn in enumerate(client.get("connections", [])):
@@ -103,6 +123,8 @@ def detail(client_id):
         client=client,
         networks=networks,
         key=key,
+        dns_server=dns_server,
+        allowed_ips_sets=allowed_ips_sets,
         connections=connections,
     )
 
@@ -115,11 +137,12 @@ def edit_client(client_id):
         flash("Client not found.", "danger")
         return redirect(url_for("clients.list_clients"))
 
-    form = ClientForm(data=client)
+    form = ClientForm(data={**client, "dns_server_id": client.get("dns_server_id") or ""})
+    form.dns_server_id.choices = _dns_server_choices(get_db())
     if form.validate_on_submit():
         get_db().clients.update_one(
             {"_id": client["_id"]},
-            {"$set": {"name": form.name.data, "dns": form.dns.data or ""}},
+            {"$set": {"name": form.name.data, "dns_server_id": form.dns_server_id.data or None}},
         )
         flash("Client updated.", "success")
         return redirect(url_for("clients.detail", client_id=client_id))
@@ -240,6 +263,7 @@ def add_connection(client_id):
     form = ClientConnectionForm()
     hosts = list(db.hosts.find())
     form.host_id.choices = [(str(h["_id"]), h["name"]) for h in hosts]
+    form.allowed_ips_set_id.choices = _allowed_ips_choices(db)
     networks = {str(n["_id"]): n for n in db.networks.find()}
     my_network_ids = {m["network_id"] for m in client.get("network_memberships", [])}
     form.network_id.choices = [
@@ -265,17 +289,14 @@ def add_connection(client_id):
                 {"$push": {"connections": {
                     "host_id": form.host_id.data,
                     "network_id": form.network_id.data,
-                    "allowed_ips": form.allowed_ips.data,
+                    "allowed_ips_set_id": form.allowed_ips_set_id.data,
                     "persistent_keepalive": form.persistent_keepalive.data,
                 }}},
             )
             flash("Connection added.", "success")
             return redirect(url_for("clients.detail", client_id=client_id))
 
-    network_cidrs = {nid: net["cidr"] for nid, net in networks.items()}
-    return render_template(
-        "clients/connection_form.html", form=form, client=client, network_cidrs=network_cidrs
-    )
+    return render_template("clients/connection_form.html", form=form, client=client)
 
 
 @bp.route("/<client_id>/connections/<int:index>/remove", methods=["POST"])

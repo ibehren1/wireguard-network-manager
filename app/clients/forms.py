@@ -5,7 +5,7 @@ from wtforms.validators import DataRequired, NumberRange, Optional
 
 class ClientForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
-    dns = StringField("DNS (optional)", validators=[Optional()])
+    dns_server_id = SelectField("DNS Server", validators=[Optional()])
 
 
 class ClientCreateForm(ClientForm):
@@ -28,7 +28,7 @@ class AssignExistingKeyForm(FlaskForm):
 class ClientConnectionForm(FlaskForm):
     host_id = SelectField("Host", validators=[DataRequired()])
     network_id = SelectField("Shared Network", validators=[DataRequired()])
-    allowed_ips = StringField("AllowedIPs", validators=[DataRequired()])
+    allowed_ips_set_id = SelectField("Allowed IPs", validators=[DataRequired()])
     persistent_keepalive = IntegerField(
         "PersistentKeepalive", validators=[Optional(), NumberRange(min=1, max=3600)], default=10
     )

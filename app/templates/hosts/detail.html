@@ -21,7 +21,7 @@
 <dl class="row">
   <dt class="col-sm-2">Hostname</dt><dd class="col-sm-10">{{ host.hostname or "-" }}</dd>
   <dt class="col-sm-2">Listen Port</dt><dd class="col-sm-10">{{ host.listen_port or "-" }}</dd>
-  <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ host.dns or "-" }}</dd>
+  <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ dns_server.name if dns_server else "-" }}</dd>
   <dt class="col-sm-2">MTU</dt><dd class="col-sm-10">{{ host.mtu or "-" }}</dd>
   <dt class="col-sm-2">Public Key</dt><dd class="col-sm-10">{% if key %}{{ key.get("name") or "(unnamed)" }} (<code>{{ key.get("public_key") or "-" }}</code>){% else %}-{% endif %}</dd>
 </dl>
@@ -57,7 +57,10 @@
     {% for item in attached_clients %}
     <tr>
       <td><a href="{{ url_for('clients.detail', client_id=item.client._id) }}"><i class="bi bi-laptop"></i> {{ item.client.name }}</a></td>
-      <td><code>{{ item.connection.allowed_ips }}</code></td>
+      <td>
+        {% set aset = allowed_ips_sets.get(item.connection.allowed_ips_set_id) %}
+        {{ aset.name ~ " (" ~ aset.cidrs ~ ")" if aset else "-" }}
+      </td>
       <td>{{ item.connection.persistent_keepalive or "-" }}</td>
     </tr>
     {% else %}
@@ -75,7 +78,10 @@
       <td><a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-server"></i> {{ item.host.name }}</a></td>
       <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
       <td>{{ item.computed_endpoint }}</td>
-      <td><code>{{ item.connection.allowed_ips }}</code></td>
+      <td>
+        {% set aset = allowed_ips_sets.get(item.connection.allowed_ips_set_id) %}
+        {{ aset.name ~ " (" ~ aset.cidrs ~ ")" if aset else "-" }}
+      </td>
       <td>{{ item.connection.persistent_keepalive or "-" }}</td>
       <td>
         <form method="post" action="{{ url_for('hosts.remove_peer_connection', host_id=host._id, peer_host_id=item.host._id, network_id=item.connection.network_id) }}" onsubmit="return confirm('Remove this peer connection?');">

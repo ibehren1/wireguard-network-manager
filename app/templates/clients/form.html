@@ -9,8 +9,8 @@
     {{ form.name(class="form-control") }}
   </div>
   <div class="mb-3">
-    {{ form.dns.label(class="form-label") }}
-    {{ form.dns(class="form-control") }}
+    {{ form.dns_server_id.label(class="form-label") }}
+    {{ form.dns_server_id(class="form-select") }}
   </div>
 
   {% if form.key_source is defined %}

@@ -19,7 +19,7 @@
 </div>
 
 <dl class="row">
-  <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ client.dns or "-" }}</dd>
+  <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ dns_server.name if dns_server else "-" }}</dd>
   <dt class="col-sm-2">Public Key</dt><dd class="col-sm-10">{% if key %}{{ key.get("name") or "(unnamed)" }} (<code>{{ key.get("public_key") or "-" }}</code>){% else %}-{% endif %}</dd>
 </dl>
 
@@ -55,7 +55,10 @@
     <tr>
       <td>{% if item.host %}<a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-server"></i> {{ item.host.name }}</a>{% else %}(deleted host){% endif %}</td>
       <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
-      <td><code>{{ item.connection.allowed_ips }}</code></td>
+      <td>
+        {% set aset = allowed_ips_sets.get(item.connection.allowed_ips_set_id) %}
+        {{ aset.name ~ " (" ~ aset.cidrs ~ ")" if aset else "-" }}
+      </td>
       <td>{{ item.connection.persistent_keepalive or "-" }}</td>
       <td>
         <a href="{{ url_for('clients.config', client_id=client._id, index=item.index) }}" target="_blank">View Config</a>

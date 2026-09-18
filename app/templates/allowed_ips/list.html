@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Allowed IPs Sets - WireGuard Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>Allowed IPs Sets</h1>
+  <a class="btn btn-primary" href="{{ url_for('allowed_ips.create_allowed_ips_set') }}">New Allowed IPs Set</a>
+</div>
+<table class="table">
+  <thead><tr><th>Name</th><th>CIDRs</th><th></th></tr></thead>
+  <tbody>
+    {% for aset in sets %}
+    <tr>
+      <td>{{ aset.name }}</td>
+      <td><code>{{ aset.cidrs }}</code></td>
+      <td>
+        <a href="{{ url_for('allowed_ips.edit_allowed_ips_set', allowed_ips_set_id=aset._id) }}">Edit</a>
+        <form method="post" action="{{ url_for('allowed_ips.delete_allowed_ips_set', allowed_ips_set_id=aset._id) }}" class="d-inline" onsubmit="return confirm('Delete this Allowed IPs set?');">
+          <button type="submit" class="btn btn-link text-danger p-0 ms-2">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No Allowed IPs sets yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
