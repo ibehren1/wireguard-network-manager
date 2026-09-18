@@ -198,18 +198,27 @@ override `AllowedIPs` at export time without necessarily persisting the override
     hides edges attached to a hidden node). Default: Networks and Hosts
     checked, Clients unchecked.
   - Node shape/color/size convention: Host = blue box, Client = green
-    ellipse, Network = gray **database**-shaped node, larger font — chosen
-    because box/ellipse/database are the vis-network shapes that size
-    themselves to fit their label drawn *inside* the shape, unlike
-    diamond/dot/star which draw the label below a fixed-size shape. Network
-    nodes are pinned to a fixed size via `widthConstraint` (so name length
-    doesn't affect node size) and labeled with the CIDR only (e.g.
-    `"10.0.0.0/24"`); the network's name is shown as a hover tooltip
-    (`title`) instead.
+    ellipse, Network = gray box, larger font — chosen because box/ellipse are
+    vis-network shapes that size themselves to fit their label drawn *inside*
+    the shape, unlike diamond/dot/star which draw the label below a
+    fixed-size shape. Network nodes are pinned to a fixed size via
+    `widthConstraint` (so name length doesn't affect node size) and labeled
+    with the CIDR only (e.g. `"10.0.0.0/24"`); the network's name is shown as
+    a hover tooltip (`title`) instead.
   - Edges: dashed gray = network membership, solid gray = network
-    supernet→subnet containment, solid green arrow = Client→Host connection,
-    solid blue double-arrow = Host↔Host peer connection. `AllowedIPs` edge
-    labels resolve the connection's `allowedIpsSetId` to its `cidrs` string.
+    supernet→subnet containment, solid green arrow = Client→Host connection.
+    A Host↔Host peer connection is drawn as **two** solid blue arrows routed
+    host→network→host through the shared Network node (`peerConnections`
+    always references a network both Hosts belong to) rather than a single
+    direct host-to-host line — there's no vis-network "waypoint" primitive,
+    so `_peer_edges()` in `app/services/graph.py` builds the two segments
+    explicitly, with the `AllowedIPs` label on only the first segment to
+    avoid showing it twice. `AllowedIPs` edge labels resolve the connection's
+    `allowedIpsSetId` to its `cidrs` string.
+  - Hierarchical layout spacing (`levelSeparation`/`nodeSpacing`/
+    `treeSpacing`/`sortMethod` in each template's `extra_scripts` block) is
+    tuned generously to accommodate the fixed 170px-wide network boxes
+    without nodes crowding/overlapping.
   - Graph-building logic lives in `app/services/graph.py`.
 
 ## Docker packaging

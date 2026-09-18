@@ -112,7 +112,7 @@ fetch("{{ url_for('hosts.graph_json', host_id=host._id) }}")
       nodes: {font: {size: 14}},
       edges: {font: {size: 11}, arrows: {to: {enabled: true, scaleFactor: 0.5}}},
       physics: false,
-      layout: {hierarchical: {direction: "UD", levelSeparation: 150, nodeSpacing: 170}}
+      layout: {hierarchical: {direction: "UD", levelSeparation: 200, nodeSpacing: 240, treeSpacing: 250, sortMethod: "directed"}}
     });
   });
 </script>

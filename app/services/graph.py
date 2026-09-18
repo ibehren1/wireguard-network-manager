@@ -39,7 +39,7 @@ def _network_node(network, level):
         "id": f"net:{network['_id']}",
         "label": network["cidr"],
         "title": network["name"],
-        "shape": "database",
+        "shape": "box",
         "color": NETWORK_COLOR,
         "font": {"color": "#fff", "size": 16},
         "margin": 14,
@@ -70,14 +70,22 @@ def _connection_edge(client_id, host_id, allowed_ips):
     }
 
 
-def _peer_edge(host_a_id, host_b_id, allowed_ips):
-    return {
-        "from": f"host:{host_a_id}",
-        "to": f"host:{host_b_id}",
-        "color": {"color": HOST_COLOR},
-        "arrows": {"to": {"enabled": True}, "from": {"enabled": True}},
-        "label": allowed_ips,
-    }
+def _peer_edges(host_a_id, host_b_id, network_id, allowed_ips):
+    return [
+        {
+            "from": f"host:{host_a_id}",
+            "to": f"net:{network_id}",
+            "color": {"color": HOST_COLOR},
+            "arrows": {"to": {"enabled": True}},
+            "label": allowed_ips,
+        },
+        {
+            "from": f"net:{network_id}",
+            "to": f"host:{host_b_id}",
+            "color": {"color": HOST_COLOR},
+            "arrows": {"to": {"enabled": True}},
+        },
+    ]
 
 
 def _network_parent_edge(child_id, parent_id):
@@ -173,7 +181,7 @@ def build_full_graph():
                 continue
             seen_peer_pairs.add(pair_key)
             allowed = _resolve_allowed_ips(allowed_ips_by_id, pconn.get("allowed_ips_set_id"))
-            edges.append(_peer_edge(hid, pconn["peer_host_id"], allowed))
+            edges.extend(_peer_edges(hid, pconn["peer_host_id"], pconn["network_id"], allowed))
 
     for client in db.clients.find():
         cid = str(client["_id"])
@@ -233,7 +241,7 @@ def build_host_graph(host_id):
         if peer:
             nodes.append(_host_node(peer, host_level))
             allowed = _resolve_allowed_ips(allowed_ips_by_id, pconn.get("allowed_ips_set_id"))
-            edges.append(_peer_edge(hid, pconn["peer_host_id"], allowed))
+            edges.extend(_peer_edges(hid, pconn["peer_host_id"], pconn["network_id"], allowed))
 
     return {"nodes": _dedupe_nodes(nodes), "edges": edges}
 
