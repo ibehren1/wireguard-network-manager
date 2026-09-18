@@ -226,6 +226,17 @@ override `AllowedIPs` at export time without necessarily persisting the override
 - `Dockerfile`: installs Python/Flask deps + MongoDB 7 server; `supervisord` config
   runs two programs: `mongod` (bound to localhost, data dir `/data/db`) and the
   Flask app via `gunicorn`.
+- `gunicorn` is invoked as `gunicorn -w 2 --worker-class gthread --threads 4 --timeout 60
+  -b 0.0.0.0:5000 wsgi:app` — threaded (`gthread`) workers, not the default `sync`
+  worker class. With `sync` workers, an idle keep-alive HTTP connection (browsers
+  routinely hold several open per origin) ties up an entire worker process while it
+  blocks waiting to read the next request; with only 2 workers total, it doesn't take
+  much for both to be stuck that way, leaving nothing free to handle a real request
+  until gunicorn's master kills the stalled worker for exceeding `--timeout` and boots
+  a replacement — surfacing as intermittent `CRITICAL WORKER TIMEOUT` entries in
+  `webapp.err.log` and a user-visible failed/hung request that clears up on refresh.
+  `gthread` lets each worker run multiple threads, so an idle connection occupies one
+  thread instead of the whole worker.
 - `docker-compose.yml`: builds the image, maps app port (e.g. `8080:5000`), mounts a
   named volume at `/data/db` for Mongo persistence, passes env vars
   (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECRET_KEY`, `ENCRYPTION_KEY`, `MONGO_URI` if needed).
