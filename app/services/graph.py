@@ -37,11 +37,13 @@ def _client_node(client, level):
 def _network_node(network, level):
     return {
         "id": f"net:{network['_id']}",
-        "label": f"{network['name']}\n{network['cidr']}",
+        "label": network["cidr"],
+        "title": network["name"],
         "shape": "database",
         "color": NETWORK_COLOR,
         "font": {"color": "#fff", "size": 16},
         "margin": 14,
+        "widthConstraint": {"minimum": 170, "maximum": 170},
         "category": "network",
         "level": level,
     }

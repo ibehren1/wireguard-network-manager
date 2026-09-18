@@ -198,11 +198,14 @@ override `AllowedIPs` at export time without necessarily persisting the override
     hides edges attached to a hidden node). Default: Networks and Hosts
     checked, Clients unchecked.
   - Node shape/color/size convention: Host = blue box, Client = green
-    ellipse, Network = gray **database**-shaped node, larger font, labeled
-    with both name and CIDR (e.g. `"LAN\n10.0.0.0/24"`) — chosen because
-    box/ellipse/database are the vis-network shapes that size themselves to
-    fit their label drawn *inside* the shape, unlike diamond/dot/star which
-    draw the label below a fixed-size shape.
+    ellipse, Network = gray **database**-shaped node, larger font — chosen
+    because box/ellipse/database are the vis-network shapes that size
+    themselves to fit their label drawn *inside* the shape, unlike
+    diamond/dot/star which draw the label below a fixed-size shape. Network
+    nodes are pinned to a fixed size via `widthConstraint` (so name length
+    doesn't affect node size) and labeled with the CIDR only (e.g.
+    `"10.0.0.0/24"`); the network's name is shown as a hover tooltip
+    (`title`) instead.
   - Edges: dashed gray = network membership, solid gray = network
     supernet→subnet containment, solid green arrow = Client→Host connection,
     solid blue double-arrow = Host↔Host peer connection. `AllowedIPs` edge
