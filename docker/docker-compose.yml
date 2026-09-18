@@ -1,7 +1,11 @@
+name: wireguard-network-manager
+
 services:
-  wireguard-manager:
-    build: .
-    image: wireguard-manager:latest
+  wireguard-network-manager:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    image: wireguard-network-manager:latest
     ports:
       - "127.0.0.1:8080:5000"
     environment:

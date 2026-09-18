@@ -52,7 +52,7 @@ make smoke-test    # start the stack and verify the login page responds
 2. Build and start:
 
    ```bash
-   docker compose up -d --build
+   docker compose -f docker/docker-compose.yml --project-directory . up -d --build
    ```
 
 3. Open http://localhost:8080 and log in.
@@ -62,6 +62,40 @@ make smoke-test    # start the stack and verify the login page responds
 MongoDB data lives in the `mongo_data` named volume (`/data/db` inside the
 container), so it survives `docker compose down` / restarts. `docker compose
 down -v` (or `make clean`) deletes it.
+
+## Deployment
+
+For deploying a published image (built and pushed via `make prod`, see
+`scripts/build.sh`) instead of building from source, use this compose file —
+it's the same as [`docker/docker-compose.yml`](docker/docker-compose.yml)
+except it pulls `ibehren1/wireguard-network-manager` from Docker Hub instead
+of building locally:
+
+```yaml
+services:
+  wireguard-network-manager:
+    image: ibehren1/wireguard-network-manager:latest
+    ports:
+      - "8080:5000"
+    environment:
+      - MONGO_URI=mongodb://127.0.0.1:27017/wireguard_manager
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+```
+
+Save that as `docker-compose.yml`, put a `.env` next to it with `SECRET_KEY`,
+`ENCRYPTION_KEY`, `ADMIN_USERNAME`, `ADMIN_PASSWORD` (see "Manual setup"
+above for how to generate them), then `docker compose up -d`. This binds to
+all interfaces on port 8080 rather than just localhost — put a reverse proxy
+(with TLS) in front for anything beyond local/trusted-network use.
 
 ## Notes
 

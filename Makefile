@@ -1,5 +1,5 @@
 SHELL := /bin/bash
-COMPOSE := docker compose
+COMPOSE := docker compose -f docker/docker-compose.yml --project-directory .
 VERSION := $(shell cat VERSION)
 
 .PHONY: help env build up down restart logs ps clean smoke-test local dev pubdev prod

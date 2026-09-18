@@ -432,12 +432,26 @@ Export UI lets the user copy or download the generated file, with an option to o
   - `pubdev`/`prod` — build + push to Docker Hub under `$DOCKER_USER` (auth via
     `$DOCKER_USER`/`$DOCKER_PAT`); `pubdev` tags `dev-latest`/`dev-${VERSION}`,
     `prod` tags `latest`/`${VERSION}`.
-  - Distinct from the `make up`/`build`/`down` docker-compose dev loop above,
-    which still builds under the `wireguard-manager` image name local to that
-    stack — the two naming schemes aren't reconciled yet.
+  - Distinct from the `make up`/`build`/`down` docker-compose dev loop above —
+    that builds the same `wireguard-network-manager` image name locally
+    (untagged with a version, just `:latest`, via `docker/docker-compose.yml`)
+    rather than through `scripts/build.sh`.
 
 ## Docker packaging
 
+- `Dockerfile` and `docker-compose.yml` both live under `docker/`, not the repo
+  root. Always invoke compose with both `-f docker/docker-compose.yml` AND
+  `--project-directory .` — the latter makes compose resolve `.env` lookup
+  *and every relative path inside the compose file* (including `build.context`)
+  from the repo root rather than from the compose file's own directory
+  (`docker/`). That's why `build.context` is `.` (not `..`, which would be
+  wrong once `--project-directory` is already pointing at repo root) with
+  `build.dockerfile: docker/Dockerfile` — the Dockerfile's `COPY`s are written
+  relative to repo root. The `Makefile`'s `COMPOSE` variable already
+  does this; don't invoke `docker compose` directly from within `docker/`.
+  The compose file pins `name: wireguard-network-manager` at the top level so
+  the project/container name doesn't depend on which directory it's run from
+  (it would otherwise default to `docker`, the compose file's own directory).
 - `Dockerfile`: installs Python/Flask deps + MongoDB 7 server; `supervisord` config
   runs two programs: `mongod` (bound to localhost, data dir `/data/db`) and the
   Flask app via `gunicorn`.
@@ -452,9 +466,14 @@ Export UI lets the user copy or download the generated file, with an option to o
   `webapp.err.log` and a user-visible failed/hung request that clears up on refresh.
   `gthread` lets each worker run multiple threads, so an idle connection occupies one
   thread instead of the whole worker.
-- `docker-compose.yml`: builds the image, maps app port (e.g. `8080:5000`), mounts a
-  named volume at `/data/db` for Mongo persistence, passes env vars
-  (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECRET_KEY`, `ENCRYPTION_KEY`, `MONGO_URI` if needed).
+- `docker/docker-compose.yml`: builds the image, maps app port (bound to
+  `127.0.0.1:8080` on the host, not all interfaces), mounts a named volume at
+  `/data/db` for Mongo persistence, passes env vars (`ADMIN_USERNAME`,
+  `ADMIN_PASSWORD`, `SECRET_KEY`, `ENCRYPTION_KEY`, `MONGO_URI` if needed).
+  README.md's "Deployment" section carries a copy of this file for users
+  deploying the published Docker Hub image (`image:` instead of `build:`,
+  bound to all interfaces instead of just localhost since it's meant to run
+  on a real host, not a laptop) — keep both in sync if either changes.
 
 ## Open items to decide while building
 

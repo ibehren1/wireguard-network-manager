@@ -8,6 +8,7 @@ set -euo pipefail
 # Prod   - build + push to Docker Hub under ${DOCKER_USER}, tagged latest / ${VERSION}.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+DOCKERFILE="${ROOT_DIR}/docker/Dockerfile"
 IMAGE_NAME="wireguard-network-manager"
 VERSION="$(cat "${ROOT_DIR}/VERSION")"
 MODE="${1:-Local}"
@@ -22,11 +23,12 @@ docker_login() {
 
 case "${MODE}" in
   Local)
-    docker build -t "${IMAGE_NAME}:${VERSION}" -t "${IMAGE_NAME}:latest" .
+    docker build -f "${DOCKERFILE}" -t "${IMAGE_NAME}:${VERSION}" -t "${IMAGE_NAME}:latest" .
     ;;
   Dev)
     : "${INTERNAL_REG:?INTERNAL_REG must be set for a Dev build}"
     docker build \
+      -f "${DOCKERFILE}" \
       -t "${INTERNAL_REG}/${IMAGE_NAME}:dev-latest" \
       -t "${INTERNAL_REG}/${IMAGE_NAME}:dev-${VERSION}" \
       .
@@ -36,6 +38,7 @@ case "${MODE}" in
   PubDev)
     docker_login
     docker build \
+      -f "${DOCKERFILE}" \
       -t "${DOCKER_USER}/${IMAGE_NAME}:dev-latest" \
       -t "${DOCKER_USER}/${IMAGE_NAME}:dev-${VERSION}" \
       .
@@ -45,6 +48,7 @@ case "${MODE}" in
   Prod)
     docker_login
     docker build \
+      -f "${DOCKERFILE}" \
       -t "${DOCKER_USER}/${IMAGE_NAME}:latest" \
       -t "${DOCKER_USER}/${IMAGE_NAME}:${VERSION}" \
       .
