@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}{{ title }} - WireGuard Network Manager{% endblock %}
+{% block content %}
+<h1 class="mb-4">{{ title }} ({{ host.name }})</h1>
+<form method="post" class="col-md-6">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.interface_type.label(class="form-label") }}
+    {{ form.interface_type(class="form-select", id="interface_type") }}
+  </div>
+  <div class="mb-3">
+    {{ form.network_id.label(class="form-label") }}
+    {{ form.network_id(class="form-select", id="network_id") }}
+  </div>
+  <div class="mb-3">
+    {{ form.ip.label(class="form-label") }}
+    {{ form.ip(class="form-control", id="ip") }}
+    <div class="form-text">Auto-suggested next free IP; edit if needed.</div>
+  </div>
+  <div class="mb-3">
+    {{ form.interface_name.label(class="form-label") }}
+    {{ form.interface_name(class="form-control", id="interface_name") }}
+    <div class="form-text">Name of the WireGuard interface for this membership (e.g. wg0); edit if needed.</div>
+  </div>
+  <div id="wg_fields">
+    <div class="mb-3">
+      {{ form.hostname.label(class="form-label") }}
+      {{ form.hostname(class="form-control", placeholder="vpn.example.com") }}
+    </div>
+    <div class="mb-3">
+      {{ form.listen_port.label(class="form-label") }}
+      {{ form.listen_port(class="form-control", placeholder="51820") }}
+    </div>
+    <div class="mb-3">
+      {{ form.dns_server_id.label(class="form-label") }}
+      {{ form.dns_server_id(class="form-select") }}
+    </div>
+    <div class="mb-3">
+      {{ form.mtu.label(class="form-label") }}
+      {{ form.mtu(class="form-control") }}
+    </div>
+  </div>
+  <button type="submit" class="btn btn-primary">Save</button>
+  <a class="btn btn-secondary" href="{{ url_for('hosts.detail', host_id=host._id) }}">Cancel</a>
+</form>
+
+<script>
+const networkTypes = {{ network_types|tojson }};
+const interfaceTypeToNetworkType = {"p2p": "p2p", "client": "host_network", "client_non_wg": "host_network"};
+
+function filterNetworks() {
+  const typeSelect = document.getElementById("interface_type");
+  const networkSelect = document.getElementById("network_id");
+  const wanted = interfaceTypeToNetworkType[typeSelect.value];
+  const currentValue = networkSelect.value;
+  let currentStillValid = false;
+  for (const opt of networkSelect.options) {
+    const netType = networkTypes[opt.value];
+    const visible = netType === wanted;
+    opt.hidden = !visible;
+    opt.disabled = !visible;
+    if (opt.value === currentValue && visible) currentStillValid = true;
+  }
+  if (!currentStillValid) {
+    const firstVisible = Array.from(networkSelect.options).find(opt => !opt.hidden);
+    networkSelect.value = firstVisible ? firstVisible.value : "";
+  }
+}
+
+function toggleWgFields() {
+  const typeSelect = document.getElementById("interface_type");
+  document.getElementById("wg_fields").style.display = (typeSelect.value === "client_non_wg") ? "none" : "";
+}
+
+async function suggestIp() {
+  const select = document.getElementById("network_id");
+  const ipField = document.getElementById("ip");
+  if (!select.value) return;
+  const resp = await fetch(`/networks/${select.value}/next-free-ip`);
+  if (!resp.ok) return;
+  const data = await resp.json();
+  if (data.ip) ipField.value = data.ip;
+}
+
+document.getElementById("interface_type").addEventListener("change", () => {
+  filterNetworks();
+  toggleWgFields();
+  suggestIp();
+});
+document.getElementById("network_id").addEventListener("change", suggestIp);
+document.addEventListener("DOMContentLoaded", () => {
+  filterNetworks();
+  toggleWgFields();
+  {% if mode == "add" %}
+  suggestIp();
+  {% endif %}
+});
+</script>
+{% endblock %}

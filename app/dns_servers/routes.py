@@ -25,7 +25,7 @@ def _in_use(dns_server_id):
     db = get_db()
     sid = str(dns_server_id)
     return (
-        db.hosts.count_documents({"dns_server_id": sid}) > 0
+        db.hosts.count_documents({"network_memberships.dns_server_id": sid}) > 0
         or db.clients.count_documents({"dns_server_id": sid}) > 0
     )
 

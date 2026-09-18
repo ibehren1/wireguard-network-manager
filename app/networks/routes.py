@@ -6,7 +6,7 @@ from flask_login import login_required
 
 from app.extensions import get_db
 from app.networks import bp
-from app.networks.forms import NetworkForm
+from app.networks.forms import NETWORK_TYPE_LABELS, NetworkForm
 from app.utils.ipam import next_free_ip, parse_network
 
 MAX_FULL_TABLE_SIZE = 1024
@@ -40,6 +40,12 @@ def _child_networks(db, cidr, exclude_id):
             children.append((doc, child))
     children.sort(key=lambda pair: pair[1].prefixlen, reverse=True)
     return children
+
+
+def _host_choices(db):
+    return [("", "-- Select a Host --")] + [
+        (str(h["_id"]), h["name"]) for h in db.hosts.find().sort("name", 1)
+    ]
 
 
 def _used_ips(network_id):
@@ -83,15 +89,25 @@ def list_networks():
             ipaddress.ip_network(net["cidr"], strict=True).prefixlen,
         )
     )
+    hosts_by_id = {str(h["_id"]): h["name"] for h in db.hosts.find()}
     for net in networks:
         net["used_count"] = _used_ip_count(net["_id"])
+        network_type = net.get("network_type", "ipam")
+        net["network_type_label"] = NETWORK_TYPE_LABELS.get(network_type, network_type)
+        managing_host_id = net.get("managing_host_id") if network_type == "host_network" else None
+        if managing_host_id and str(managing_host_id) in hosts_by_id:
+            net["managing_host"] = {"id": str(managing_host_id), "name": hosts_by_id[str(managing_host_id)]}
+        else:
+            net["managing_host"] = None
     return render_template("networks/list.html", networks=networks)
 
 
 @bp.route("/new", methods=["GET", "POST"])
 @login_required
 def create_network():
+    db = get_db()
     form = NetworkForm()
+    form.managing_host_id.choices = _host_choices(db)
     if form.validate_on_submit():
         try:
             parse_network(form.cidr.data)
@@ -104,11 +120,23 @@ def create_network():
             flash(f"CIDR overlaps with existing network '{conflict}'.", "danger")
             return render_template("networks/form.html", form=form, title="New Network")
 
-        get_db().networks.insert_one(
+        if form.network_type.data == "host_network" and not form.managing_host_id.data:
+            flash("Choose a managing Host for a Host Network.", "danger")
+            return render_template("networks/form.html", form=form, title="New Network")
+
+        managing_host_id = (
+            ObjectId(form.managing_host_id.data)
+            if form.network_type.data == "host_network" and form.managing_host_id.data
+            else None
+        )
+
+        db.networks.insert_one(
             {
                 "name": form.name.data,
                 "cidr": form.cidr.data,
                 "description": form.description.data or "",
+                "network_type": form.network_type.data,
+                "managing_host_id": managing_host_id,
             }
         )
         flash("Network created.", "success")
@@ -125,7 +153,16 @@ def edit_network(network_id):
         flash("Network not found.", "danger")
         return redirect(url_for("networks.list_networks"))
 
-    form = NetworkForm(data={"name": net["name"], "cidr": net["cidr"], "description": net["description"]})
+    form = NetworkForm(
+        data={
+            "name": net["name"],
+            "cidr": net["cidr"],
+            "description": net["description"],
+            "network_type": net.get("network_type", "ipam"),
+            "managing_host_id": str(net["managing_host_id"]) if net.get("managing_host_id") else "",
+        }
+    )
+    form.managing_host_id.choices = _host_choices(db)
     if form.validate_on_submit():
         try:
             parse_network(form.cidr.data)
@@ -138,12 +175,24 @@ def edit_network(network_id):
             flash(f"CIDR overlaps with existing network '{conflict}'.", "danger")
             return render_template("networks/form.html", form=form, title="Edit Network")
 
+        if form.network_type.data == "host_network" and not form.managing_host_id.data:
+            flash("Choose a managing Host for a Host Network.", "danger")
+            return render_template("networks/form.html", form=form, title="Edit Network")
+
+        managing_host_id = (
+            ObjectId(form.managing_host_id.data)
+            if form.network_type.data == "host_network" and form.managing_host_id.data
+            else None
+        )
+
         db.networks.update_one(
             {"_id": ObjectId(network_id)},
             {"$set": {
                 "name": form.name.data,
                 "cidr": form.cidr.data,
                 "description": form.description.data or "",
+                "network_type": form.network_type.data,
+                "managing_host_id": managing_host_id,
             }},
         )
         flash("Network updated.", "success")
@@ -251,6 +300,16 @@ def view_network(network_id):
             ipaddress.ip_network(c["cidr"], strict=True).prefixlen,
         )
     )
+
+    network_type = net.get("network_type", "ipam")
+    net["network_type_label"] = NETWORK_TYPE_LABELS.get(network_type, network_type)
+    managing_host_id = net.get("managing_host_id") if network_type == "host_network" else None
+    managing_host = None
+    if managing_host_id:
+        host_doc = db.hosts.find_one({"_id": ObjectId(managing_host_id)})
+        if host_doc:
+            managing_host = {"id": str(host_doc["_id"]), "name": host_doc["name"]}
+    net["managing_host"] = managing_host
 
     return render_template(
         "networks/detail.html",

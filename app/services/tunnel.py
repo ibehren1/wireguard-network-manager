@@ -4,9 +4,9 @@ from app.extensions import get_db
 from app.utils.crypto import decrypt_private_key
 
 
-def _computed_endpoint(host):
-    if host.get("hostname") and host.get("listen_port"):
-        return f"{host['hostname']}:{host['listen_port']}"
+def _computed_endpoint(membership):
+    if membership and membership.get("hostname") and membership.get("listen_port"):
+        return f"{membership['hostname']}:{membership['listen_port']}"
     return None
 
 
@@ -31,22 +31,25 @@ def render_host_interface_config(host_id, network_id):
     membership = _find_membership(host.get("network_memberships", []), network_id)
     if not membership:
         raise ValueError("Host is not a member of that network")
+    if membership.get("interface_type", "client") == "client_non_wg":
+        raise ValueError("This interface has no WireGuard configuration to export.")
 
-    key = db.keys.find_one({"_id": ObjectId(host["active_key_id"])}) if host.get("active_key_id") else None
+    key_id = membership.get("active_key_id")
+    key = db.keys.find_one({"_id": ObjectId(key_id)}) if key_id else None
     private_key = decrypt_private_key(key["private_key"]) if key and key.get("private_key") else ""
 
     lines = ["[Interface]", f"PrivateKey = {private_key}"]
     address = _single_address(membership, db)
     if address:
         lines.append(f"Address = {address}")
-    if host.get("listen_port"):
-        lines.append(f"ListenPort = {host['listen_port']}")
-    if host.get("dns_server_id"):
-        dns_server = db.dns_servers.find_one({"_id": ObjectId(host["dns_server_id"])})
+    if membership.get("listen_port"):
+        lines.append(f"ListenPort = {membership['listen_port']}")
+    if membership.get("dns_server_id"):
+        dns_server = db.dns_servers.find_one({"_id": ObjectId(membership["dns_server_id"])})
         if dns_server:
             lines.append(f"DNS = {dns_server['ips']}")
-    if host.get("mtu"):
-        lines.append(f"MTU = {host['mtu']}")
+    if membership.get("mtu"):
+        lines.append(f"MTU = {membership['mtu']}")
 
     for client in db.clients.find({"connections.host_id": str(host["_id"])}):
         client_key = (
@@ -78,15 +81,13 @@ def render_host_interface_config(host_id, network_id):
         peer_host = db.hosts.find_one({"_id": ObjectId(pconn["peer_host_id"])})
         if not peer_host:
             continue
-        peer_key = (
-            db.keys.find_one({"_id": ObjectId(peer_host["active_key_id"])})
-            if peer_host.get("active_key_id")
-            else None
-        )
+        peer_membership = _find_membership(peer_host.get("network_memberships", []), pconn["network_id"])
+        peer_key_id = peer_membership.get("active_key_id") if peer_membership else None
+        peer_key = db.keys.find_one({"_id": ObjectId(peer_key_id)}) if peer_key_id else None
         lines.append("")
         lines.append(f"[Peer]  # Host: {peer_host.get('name', '')}")
         lines.append(f"PublicKey = {peer_key.get('public_key', '') if peer_key else ''}")
-        endpoint = pconn.get("endpoint_override") or _computed_endpoint(peer_host)
+        endpoint = pconn.get("endpoint_override") or _computed_endpoint(peer_membership)
         if endpoint:
             lines.append(f"Endpoint = {endpoint}")
         aset = db.allowed_ips.find_one({"_id": ObjectId(pconn["allowed_ips_set_id"])})
@@ -125,13 +126,13 @@ def render_client_interface_config(client_id, network_id, allowed_ips_override=N
         host = db.hosts.find_one({"_id": ObjectId(conn["host_id"])})
         if not host:
             continue
-        host_key = (
-            db.keys.find_one({"_id": ObjectId(host["active_key_id"])}) if host.get("active_key_id") else None
-        )
+        host_membership = _find_membership(host.get("network_memberships", []), conn["network_id"])
+        host_key_id = host_membership.get("active_key_id") if host_membership else None
+        host_key = db.keys.find_one({"_id": ObjectId(host_key_id)}) if host_key_id else None
         lines.append("")
         lines.append(f"[Peer]  # Host: {host.get('name', '')}")
         lines.append(f"PublicKey = {host_key.get('public_key', '') if host_key else ''}")
-        host_endpoint = _computed_endpoint(host)
+        host_endpoint = _computed_endpoint(host_membership)
         if host_endpoint:
             lines.append(f"Endpoint = {host_endpoint}")
         aset = db.allowed_ips.find_one({"_id": ObjectId(conn["allowed_ips_set_id"])})

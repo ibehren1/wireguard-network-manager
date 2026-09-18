@@ -40,4 +40,8 @@ def create_app():
     with app.app_context():
         ensure_admin_user()
 
+    @app.context_processor
+    def inject_version():
+        return {"app_version": app.config["VERSION"]}
+
     return app

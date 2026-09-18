@@ -1,10 +1,11 @@
 SHELL := /bin/bash
 COMPOSE := docker compose
+VERSION := $(shell cat VERSION)
 
-.PHONY: help env build up down restart logs ps clean smoke-test
+.PHONY: help env build up down restart logs ps clean smoke-test local dev pubdev prod
 
 help:
-	@echo "Targets:"
+	@echo "Local dev loop (docker compose, uses the mongo_data volume):"
 	@echo "  make env         - create .env from .env.example with random secrets (skips if .env exists)"
 	@echo "  make build       - build the Docker image"
 	@echo "  make up          - generate env (if needed), build, and start the stack"
@@ -14,6 +15,12 @@ help:
 	@echo "  make ps          - show container status"
 	@echo "  make clean       - stop the stack and delete the Mongo data volume"
 	@echo "  make smoke-test  - start the stack and verify the login page responds"
+	@echo ""
+	@echo "Release builds (current VERSION: $(VERSION)):"
+	@echo "  make local       - build wireguard-network-manager:$(VERSION) + :latest locally, no push"
+	@echo "  make dev         - build + push to \$$INTERNAL_REG, tagged dev-latest / dev-$(VERSION)"
+	@echo "  make pubdev      - build + push to Docker Hub (\$$DOCKER_USER/\$$DOCKER_PAT), tagged dev-latest / dev-$(VERSION)"
+	@echo "  make prod        - build + push to Docker Hub (\$$DOCKER_USER/\$$DOCKER_PAT), tagged latest / $(VERSION)"
 
 env:
 	@if [ -f .env ]; then \
@@ -60,3 +67,15 @@ smoke-test: up
 		sleep 1; \
 	done; \
 	echo "FAILED: app did not respond within 30s. Check 'make logs'."; exit 1
+
+local:
+	./scripts/build.sh Local
+
+dev:
+	./scripts/build.sh Dev
+
+pubdev:
+	./scripts/build.sh PubDev
+
+prod:
+	./scripts/build.sh Prod

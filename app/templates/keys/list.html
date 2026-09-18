@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Keys - WireGuard Manager{% endblock %}
+{% block title %}Keys - WireGuard Network Manager{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1>Keys</h1>
@@ -7,18 +7,17 @@
 </div>
 <p class="text-muted">Keys are generated/rotated from a Host's or Client's detail page, or created here on their own and assigned later. A key can be used by more than one Host/Client, though that isn't recommended.</p>
 <table class="table">
-  <thead><tr><th>Name</th><th>Public Key</th><th>Used By</th><th>Created</th><th></th></tr></thead>
+  <thead><tr><th>Name</th><th>Used By</th><th>Created</th><th></th></tr></thead>
   <tbody>
     {% for key in keys %}
     <tr>
-      <td>{{ key.get("name") or "(unnamed)" }}</td>
-      <td><code>{{ key.get("public_key") or "-" }}</code></td>
+      <td><a href="{{ url_for('keys.edit_key', key_id=key._id) }}">{{ key.get("name") or "(unnamed)" }}</a></td>
       <td>
         {% set usages = key.get("usages") or [] %}
         {% if usages %}
           {% for u in usages %}
-            {% if u.type == "host" %}
-              <a href="{{ url_for('hosts.detail', host_id=u.id) }}"><i class="bi bi-server"></i> {{ u.name }}</a>
+            {% if u.type == "host_interface" %}
+              <a href="{{ url_for('hosts.detail', host_id=u.host_id) }}"><i class="bi bi-server"></i> {{ u.name }}</a>
             {% else %}
               <a href="{{ url_for('clients.detail', client_id=u.id) }}"><i class="bi bi-laptop"></i> {{ u.name }}</a>
             {% endif %}
@@ -40,7 +39,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5">No keys yet.</td></tr>
+    <tr><td colspan="4">No keys yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

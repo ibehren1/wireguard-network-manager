@@ -38,30 +38,59 @@ def _store_key(name, public_b64, private_b64):
 
 
 def assign_key_to_owner(key_id, owner_type, owner_id):
-    """Point a Host/Client's active_key_id at the given key.
+    """Point a Client's active_key_id at the given key.
 
-    A key can be the active key for more than one Host/Client at a time
-    (not recommended, but not prevented) — this just sets the pointer, it
-    does not touch the key document or any other owner referencing it.
+    A key can be the active key for more than one Host interface/Client at a
+    time (not recommended, but not prevented) — this just sets the pointer,
+    it does not touch the key document or any other owner referencing it.
+
+    Hosts no longer have a single active_key_id (keys are per-interface) —
+    see assign_key_to_host_interface below for that case.
     """
     db = get_db()
     collection = db.hosts if owner_type == "host" else db.clients
     collection.update_one({"_id": ObjectId(owner_id)}, {"$set": {"active_key_id": str(key_id)}})
 
 
-def key_usages(key_id):
-    """Return every Host/Client currently using this key as its active key.
+def assign_key_to_host_interface(key_id, host_id, network_id):
+    """Point one of a Host's network_memberships (interfaces) at the given key.
 
-    Usage is derived (not stored): a key is "in use" by any Host/Client
-    whose active_key_id matches. Each entry is
-    {"type": "host"/"client", "id": str, "name": str}.
+    Same "not exclusively owned" policy as assign_key_to_owner — this just
+    repoints that interface's active_key_id, leaving the key document and any
+    other usage alone.
+    """
+    db = get_db()
+    db.hosts.update_one(
+        {"_id": ObjectId(host_id)},
+        {"$set": {"network_memberships.$[elem].active_key_id": str(key_id)}},
+        array_filters=[{"elem.network_id": network_id}],
+    )
+
+
+def key_usages(key_id):
+    """Return every Host interface/Client currently using this key as its
+    active key.
+
+    Usage is derived (not stored): a key is "in use" by any Host interface
+    (network_memberships entry) or Client whose active_key_id matches. Each
+    entry is either {"type": "host_interface", "host_id": str, "network_id":
+    str, "name": str} (one per matching interface — a host could in theory
+    have the same key on more than one interface) or
+    {"type": "client", "id": str, "name": str}.
     """
     db = get_db()
     key_id = str(key_id)
-    usages = [
-        {"type": "host", "id": str(h["_id"]), "name": h.get("name") or "(unnamed host)"}
-        for h in db.hosts.find({"active_key_id": key_id}).sort("name", 1)
-    ]
+    usages = []
+    for h in db.hosts.find({"network_memberships.active_key_id": key_id}).sort("name", 1):
+        for m in h.get("network_memberships", []):
+            if m.get("active_key_id") == key_id:
+                interface_name = m.get("interface_name") or "wg?"
+                usages.append({
+                    "type": "host_interface",
+                    "host_id": str(h["_id"]),
+                    "network_id": m["network_id"],
+                    "name": f"{h.get('name') or '(unnamed host)'} ({interface_name})",
+                })
     usages += [
         {"type": "client", "id": str(c["_id"]), "name": c.get("name") or "(unnamed client)"}
         for c in db.clients.find({"active_key_id": key_id}).sort("name", 1)

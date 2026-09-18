@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - WireGuard Manager{% endblock %}
+{% block title %}Dashboard - WireGuard Network Manager{% endblock %}
 {% block extra_head %}
 <link href="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/styles/vis-network.min.css" rel="stylesheet">
 {% endblock %}
@@ -49,7 +49,8 @@
   <span class="badge" style="background:#0d6efd;">&nbsp;&nbsp;</span> Host &nbsp;
   <span class="badge" style="background:#198754;">&nbsp;&nbsp;</span> Client &nbsp;
   <span class="badge" style="background:#6c757d;">&nbsp;&nbsp;</span> Network &nbsp;
-  Dashed lines are network memberships; solid arrows are Client&rarr;Host or Host&harr;Host connections.
+  Dashed lines are network memberships; solid gray lines connect CIDR-space networks to each other and to Hosts;
+  solid arrows are Client&rarr;Network or Host&harr;Host connections.
 </p>
 <div class="mb-2">
   <div class="form-check form-check-inline">
@@ -79,11 +80,28 @@ fetch("{{ url_for('topology.graph_json') }}")
 
     const nodes = new vis.DataSet(data.nodes);
     const edges = new vis.DataSet(data.edges);
-    new vis.Network(document.getElementById("graph"), {nodes, edges}, {
+    const network = new vis.Network(document.getElementById("graph"), {nodes, edges}, {
       nodes: {font: {size: 14}},
       edges: {font: {size: 11}, arrows: {to: {enabled: true, scaleFactor: 0.5}}},
       physics: false,
-      layout: {hierarchical: {direction: "UD", levelSeparation: 200, nodeSpacing: 240, treeSpacing: 250, sortMethod: "directed"}}
+      layout: {hierarchical: {direction: "UD", levelSeparation: 230, nodeSpacing: 280, treeSpacing: 300, sortMethod: "directed", blockShifting: true, edgeMinimization: true, parentCentralization: true}}
+    });
+
+    // vis-network's hierarchical layout only uses edges between adjacent
+    // levels to order nodes horizontally — a P2P network's edges to its two
+    // Hosts are same-level, so the layout has no basis to center it between
+    // them. Snap it to the exact horizontal midpoint (centroid, if more than
+    // two) of its member Hosts once positions are known.
+    network.once("afterDrawing", () => {
+      const p2pNodes = nodes.get({filter: n => n.member_host_ids && n.member_host_ids.length});
+      p2pNodes.forEach(n => {
+        const memberIds = n.member_host_ids.filter(id => nodes.get(id));
+        if (!memberIds.length) return;
+        const positions = network.getPositions(memberIds);
+        const avgX = Object.values(positions).reduce((sum, p) => sum + p.x, 0) / memberIds.length;
+        const myY = network.getPositions([n.id])[n.id].y;
+        network.moveNode(n.id, avgX, myY);
+      });
     });
 
     document.querySelectorAll(".graph-filter").forEach(cb => {

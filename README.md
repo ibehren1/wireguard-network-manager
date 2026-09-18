@@ -1,4 +1,4 @@
-# WireGuard Manager
+# WireGuard Network Manager
 
 Web app for managing WireGuard Hosts, Clients, Networks (IPAM), and Keys, with
 tunnel config generation. Flask + MongoDB 7, packaged as a single Docker

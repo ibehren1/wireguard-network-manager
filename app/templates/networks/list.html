@@ -1,18 +1,24 @@
 {% extends "base.html" %}
-{% block title %}Networks - WireGuard Manager{% endblock %}
+{% block title %}Networks - WireGuard Network Manager{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1>Networks</h1>
   <a class="btn btn-primary" href="{{ url_for('networks.create_network') }}">New Network</a>
 </div>
 <table class="table">
-  <thead><tr><th>Name</th><th>CIDR</th><th>Description</th><th>Assigned IPs</th><th></th></tr></thead>
+  <thead><tr><th>CIDR</th><th>Name</th><th>Description</th><th>Type</th><th>Assigned IPs</th><th></th></tr></thead>
   <tbody>
     {% for net in networks %}
     <tr>
-      <td><a href="{{ url_for('networks.view_network', network_id=net._id) }}"><i class="bi bi-diagram-3"></i> {{ net.name }}</a></td>
       <td><code>{{ net.cidr }}</code></td>
+      <td><a href="{{ url_for('networks.view_network', network_id=net._id) }}"><i class="bi bi-diagram-3"></i> {{ net.name }}</a></td>
       <td>{{ net.description }}</td>
+      <td>
+        {{ net.network_type_label }}
+        {% if net.managing_host %}
+        <br><a href="{{ url_for('hosts.detail', host_id=net.managing_host.id) }}"><i class="bi bi-server"></i> {{ net.managing_host.name }}</a>
+        {% endif %}
+      </td>
       <td>{{ net.used_count }}</td>
       <td>
         <a href="{{ url_for('networks.edit_network', network_id=net._id) }}">Edit</a>
@@ -22,7 +28,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="5">No networks yet.</td></tr>
+    <tr><td colspan="6">No networks yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

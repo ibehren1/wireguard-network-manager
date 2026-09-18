@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ network.name }} - WireGuard Manager{% endblock %}
+{% block title %}{{ network.name }} - WireGuard Network Manager{% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
   <h1><i class="bi bi-diagram-3"></i> {{ network.name }}</h1>
@@ -9,6 +9,11 @@
 <dl class="row">
   <dt class="col-sm-2">CIDR</dt><dd class="col-sm-10"><code>{{ network.cidr }}</code></dd>
   <dt class="col-sm-2">Description</dt><dd class="col-sm-10">{{ network.description or "-" }}</dd>
+  <dt class="col-sm-2">Type</dt><dd class="col-sm-10">{{ network.network_type_label }}</dd>
+  {% if network.managing_host %}
+  <dt class="col-sm-2">Managing Host</dt>
+  <dd class="col-sm-10"><a href="{{ url_for('hosts.detail', host_id=network.managing_host.id) }}"><i class="bi bi-server"></i> {{ network.managing_host.name }}</a></dd>
+  {% endif %}
   <dt class="col-sm-2">Assigned IPs</dt><dd class="col-sm-10">{{ assigned_count }}</dd>
 </dl>
 
