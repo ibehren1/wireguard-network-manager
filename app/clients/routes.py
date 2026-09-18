@@ -212,6 +212,8 @@ def add_network_membership(client_id):
     form = NetworkMembershipForm()
     networks = list(db.networks.find())
     form.network_id.choices = [(str(n["_id"]), f"{n['name']} ({n['cidr']})") for n in networks]
+    if not form.interface_name.data:
+        form.interface_name.data = f"wg{len(client.get('network_memberships', []))}"
 
     if form.validate_on_submit():
         network = db.networks.find_one({"_id": ObjectId(form.network_id.data)})
@@ -227,7 +229,11 @@ def add_network_membership(client_id):
         else:
             db.clients.update_one(
                 {"_id": client["_id"]},
-                {"$push": {"network_memberships": {"network_id": form.network_id.data, "ip": form.ip.data}}},
+                {"$push": {"network_memberships": {
+                    "network_id": form.network_id.data,
+                    "ip": form.ip.data,
+                    "interface_name": form.interface_name.data,
+                }}},
             )
             flash("Network membership added.", "success")
             return redirect(url_for("clients.detail", client_id=client_id))

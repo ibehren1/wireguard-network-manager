@@ -33,6 +33,7 @@ class AssignExistingKeyForm(FlaskForm):
 class NetworkMembershipForm(FlaskForm):
     network_id = SelectField("Network", validators=[DataRequired()])
     ip = StringField("IP Address", validators=[DataRequired()])
+    interface_name = StringField("Interface Name", validators=[DataRequired()])
 
 
 class HostPeerConnectionForm(FlaskForm):

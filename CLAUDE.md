@@ -110,7 +110,11 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
   `mtu` (optional). The peer "Endpoint" value (`host:port`) is never stored directly —
   it's always computed as `f"{hostname}:{listenPort}"` when both are set (a
   per-connection `endpointOverride` can still override this at the connection level).
-- `networkMemberships`: `[{networkId, ip}, ...]` — a Host can belong to multiple Networks, one IP per Network.
+- `networkMemberships`: `[{networkId, ip, interfaceName}, ...]` — a Host can belong to multiple Networks, one IP per Network.
+  `interfaceName` (e.g. `wg0`, `wg-lan`) is freely editable and defaults to `wg<index>` (based on
+  the Host's current membership count) when adding a new membership via the UI; it's used by
+  tunnel-config generation to name each per-interface config (one interface per network
+  membership). Memberships created before this field existed won't have it set.
 - `peerConnections` (Host↔Host, for P2P links): `[{peerHostId, allowedIpsSetId, endpointOverride?, persistentKeepalive?}, ...]`.
   - When a peer connection is created, the reciprocal `peerConnections` entry pushed onto
     the peer Host defaults to the SAME `allowedIpsSetId` the user picked for the primary
@@ -120,7 +124,9 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 
 **WireGuardClient**
 - `name`, `activeKeyId`, `dnsServerId` (optional, references DnsServer).
-- `networkMemberships`: `[{networkId, ip}, ...]` — a Client can belong to multiple Networks.
+- `networkMemberships`: `[{networkId, ip, interfaceName}, ...]` — a Client can belong to multiple Networks.
+  `interfaceName` behaves the same as on `WireGuardHost` above (freely editable, defaults to
+  `wg<index>` when adding a new membership, used to name each per-interface tunnel config).
 - `connections`: `[{hostId, allowedIpsSetId, persistentKeepalive}, ...]` — one entry per Host this Client connects to.
   - `allowedIpsSetId` references an AllowedIpsSet (e.g. that Network's CIDR for split-tunnel, or a `0.0.0.0/0` set for full-tunnel).
   - `persistentKeepalive` defaults to `10`.

@@ -13,6 +13,11 @@
     {{ form.ip(class="form-control", id="ip") }}
     <div class="form-text">Auto-suggested next free IP; edit if needed.</div>
   </div>
+  <div class="mb-3">
+    {{ form.interface_name.label(class="form-label") }}
+    {{ form.interface_name(class="form-control", id="interface_name") }}
+    <div class="form-text">Name of the WireGuard interface for this membership (e.g. wg0); edit if needed.</div>
+  </div>
   <button type="submit" class="btn btn-primary">Add</button>
   <a class="btn btn-secondary" href="{{ url_for('hosts.detail', host_id=host._id) }}">Cancel</a>
 </form>

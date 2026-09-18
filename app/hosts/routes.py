@@ -250,6 +250,8 @@ def add_network_membership(host_id):
     form = NetworkMembershipForm()
     networks = list(db.networks.find())
     form.network_id.choices = [(str(n["_id"]), f"{n['name']} ({n['cidr']})") for n in networks]
+    if not form.interface_name.data:
+        form.interface_name.data = f"wg{len(host.get('network_memberships', []))}"
 
     if form.validate_on_submit():
         network = db.networks.find_one({"_id": ObjectId(form.network_id.data)})
@@ -265,7 +267,11 @@ def add_network_membership(host_id):
         else:
             db.hosts.update_one(
                 {"_id": host["_id"]},
-                {"$push": {"network_memberships": {"network_id": form.network_id.data, "ip": form.ip.data}}},
+                {"$push": {"network_memberships": {
+                    "network_id": form.network_id.data,
+                    "ip": form.ip.data,
+                    "interface_name": form.interface_name.data,
+                }}},
             )
             flash("Network membership added.", "success")
             return redirect(url_for("hosts.detail", host_id=host_id))
