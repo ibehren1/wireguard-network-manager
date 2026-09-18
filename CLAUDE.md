@@ -9,6 +9,9 @@ association management and tunnel config file export.
 - MongoDB 7, accessed via **PyMongo** directly (no ORM).
 - Served by `gunicorn`, managed by `supervisord` alongside `mongod` in a single container.
 - Packaged as a Docker container (Dockerfile) + `docker-compose.yml`.
+- Dependencies managed by **uv** — `pyproject.toml` (declared deps) + `uv.lock`
+  (resolved/pinned versions), not `requirements.txt`/pip. See "Docker packaging"
+  below for how the image builds against it.
 
 ## Auth
 
@@ -452,11 +455,25 @@ Export UI lets the user copy or download the generated file, with an option to o
   The compose file pins `name: wireguard-network-manager` at the top level so
   the project/container name doesn't depend on which directory it's run from
   (it would otherwise default to `docker`, the compose file's own directory).
-- `Dockerfile`: installs Python/Flask deps + MongoDB 7 server; `supervisord` config
-  runs two programs: `mongod` (bound to localhost, data dir `/data/db`) and the
-  Flask app via `gunicorn`.
-- `gunicorn` is invoked as `gunicorn -w 2 --worker-class gthread --threads 4 --timeout 60
-  -b 0.0.0.0:5000 wsgi:app` — threaded (`gthread`) workers, not the default `sync`
+- `Dockerfile`: dependencies are managed by **uv** (`pyproject.toml` + `uv.lock`,
+  not `requirements.txt`/pip) — the `uv` binary itself is copied in directly from
+  the official `ghcr.io/astral-sh/uv` image (`COPY --from=`), then
+  `uv sync --frozen --no-install-project` installs into `/app/.venv`
+  (`UV_PROJECT_ENVIRONMENT=/app/.venv`) before the app code is copied in, for
+  layer caching. `--no-install-project` is required because `[tool.uv]
+  package = false` in `pyproject.toml` — this project isn't structured as an
+  installable package (it's a Flask app run via `wsgi.py`, not a library), so
+  `uv` only manages the dependency set, not the app itself. Installs MongoDB 7
+  server too; `supervisord` config runs two programs: `mongod` (bound to
+  localhost, data dir `/data/db`) and the Flask app via `gunicorn` (invoked as
+  `/app/.venv/bin/gunicorn`, not a bare `gunicorn` off `$PATH`, since it's not
+  installed system-wide).
+  - To change dependencies: edit `pyproject.toml`'s `dependencies` list, then
+    run `uv lock` locally (regenerates `uv.lock`) before rebuilding the image —
+    `uv sync --frozen` in the Dockerfile will fail if `uv.lock` is out of sync
+    with `pyproject.toml`.
+- `gunicorn` is invoked as `/app/.venv/bin/gunicorn -w 2 --worker-class gthread
+  --threads 4 --timeout 60 -b 0.0.0.0:5000 wsgi:app` — threaded (`gthread`) workers, not the default `sync`
   worker class. With `sync` workers, an idle keep-alive HTTP connection (browsers
   routinely hold several open per origin) ties up an entire worker process while it
   blocks waiting to read the next request; with only 2 workers total, it doesn't take
