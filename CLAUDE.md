@@ -227,14 +227,35 @@ Export UI lets the user copy or download the generated file, with an option to o
     vis-network's `hierarchical` layout (`direction: "UD"`) — no jiggle, and
     every node carries an explicit `level` (see below) rather than letting
     vis-network infer position from edges.
-  - **Vertical ordering**: Networks sit at the top. A Network's `level` is its
-    CIDR nesting depth among the networks in that particular graph (root/
-    top-level = 0, a subnet of it = 1, a subnet of that = 2, ...), with an
-    explicit supernet→subnet edge drawn between a network and its most
-    specific containing network. A Host/Client's `level` is one below the
-    network(s) it belongs to; if attached to networks at different levels, it
-    sits at the midpoint between them rather than below the deepest one
-    (`_member_level` in `app/services/graph.py`).
+  - **Vertical ordering (dashboard/global graph)**: Networks sit at the top. A
+    Network's `level` is its CIDR nesting depth among the networks in that
+    particular graph (root/top-level = 0, a subnet of it = 1, a subnet of
+    that = 2, ...), with an explicit supernet→subnet edge drawn between a
+    network and its most specific containing network. A Host/Client's `level`
+    is one below the network(s) it belongs to; if attached to networks at
+    different levels, it sits at the midpoint between them rather than below
+    the deepest one (`_member_level` in `app/services/graph.py`).
+  - **Vertical ordering (Host/Client detail-page graphs differs from the
+    dashboard)**: `build_host_graph()` and `build_client_graph()` in
+    `app/services/graph.py` use their own level rules, not the dashboard's
+    network-on-top rule above.
+    - **Host detail page**: the focal Host and any Host↔Host peer Hosts sit
+      together at the top (`level` 0), displayed horizontally side by side.
+      Any network that's the target of a peer connection ("host-to-host",
+      typically a P2P `/30`) also sits at level 0, between the two Hosts it
+      links (via `_peer_edges()`). Every other ("regular"/LAN-style) network
+      the Host belongs to sits below the Host, starting at level 1 and going
+      deeper for nested-CIDR hierarchy among just those regular networks
+      (`_network_hierarchy()`, shifted down by 1). A Client connected to the
+      Host sits one level below whichever regular network its connection
+      runs over.
+    - **Client detail page**: any Host(s) the Client connects to sit at the
+      top (`level` 0), displayed horizontally. The Client's own network(s) sit
+      below the hosts, starting at level 1 (deeper for nested-CIDR hierarchy
+      among them, via `_network_hierarchy()` shifted down by 1). The Client
+      itself sits one level below its network(s) (`_member_level()`, at the
+      midpoint if attached to networks at different levels). Top-to-bottom
+      order: Host(s) → Network(s) → Client.
   - **Category filter** (dashboard only): each node carries a `category`
     (`"network"`/`"host"`/`"client"`); checkboxes above the dashboard graph
     toggle a node's `hidden` flag per category (vis-network automatically
