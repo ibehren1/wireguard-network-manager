@@ -8,7 +8,7 @@ from app.extensions import get_db
 from app.hosts.forms import NetworkMembershipForm
 from app.keys.service import assign_key_to_owner, generate_and_store_key, key_usages, store_provided_key
 from app.services.graph import build_client_graph
-from app.services.tunnel import render_client_config
+from app.services.tunnel import render_client_interface_config
 from app.utils.crypto import is_valid_wg_key
 from app.utils.ipam import ip_in_network
 
@@ -113,10 +113,20 @@ def detail(client_id):
     )
     allowed_ips_sets = {str(a["_id"]): a for a in db.allowed_ips.find()}
 
-    connections = []
-    for idx, conn in enumerate(client.get("connections", [])):
-        host = db.hosts.find_one({"_id": ObjectId(conn["host_id"])})
-        connections.append({"index": idx, "connection": conn, "host": host})
+    interfaces = []
+    for m in client.get("network_memberships", []):
+        conns = []
+        for idx, conn in enumerate(client.get("connections", [])):
+            if conn.get("network_id") != m["network_id"]:
+                continue
+            host = db.hosts.find_one({"_id": ObjectId(conn["host_id"])})
+            conns.append({"index": idx, "connection": conn, "host": host})
+        interfaces.append({
+            "membership": m,
+            "network": networks.get(m["network_id"]),
+            "interface_name": m.get("interface_name") or "wg?",
+            "connections": conns,
+        })
 
     return render_template(
         "clients/detail.html",
@@ -125,7 +135,7 @@ def detail(client_id):
         key=key,
         dns_server=dns_server,
         allowed_ips_sets=allowed_ips_sets,
-        connections=connections,
+        interfaces=interfaces,
     )
 
 
@@ -315,18 +325,27 @@ def remove_connection(client_id, index):
     return redirect(url_for("clients.detail", client_id=client_id))
 
 
-@bp.route("/<client_id>/config/<int:index>")
+@bp.route("/<client_id>/config/<network_id>")
 @login_required
-def config(client_id, index):
+def config(client_id, network_id):
     client = _find_client_or_404(client_id)
     if not client:
         flash("Client not found.", "danger")
         return redirect(url_for("clients.list_clients"))
 
     override = request.args.get("allowed_ips_override") or None
-    text = render_client_config(client_id, connection_index=index, allowed_ips_override=override)
+    try:
+        text = render_client_interface_config(client_id, network_id, allowed_ips_override=override)
+    except ValueError as exc:
+        flash(str(exc), "danger")
+        return redirect(url_for("clients.detail", client_id=client_id))
+
     if request.args.get("download"):
-        filename = f"{client['name']}.conf"
+        interface_name = next(
+            (m.get("interface_name") for m in client.get("network_memberships", []) if m["network_id"] == network_id),
+            None,
+        ) or network_id
+        filename = f"{client['name']}-{interface_name}.conf"
         return Response(
             text,
             mimetype="text/plain",

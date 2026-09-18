@@ -96,9 +96,23 @@
 </table>
 <a class="btn btn-sm btn-primary" href="{{ url_for('hosts.add_peer_connection', host_id=host._id) }}">Add Peer Host</a>
 
-<h3 class="mt-4">Tunnel Config</h3>
-<a class="btn btn-secondary" href="{{ url_for('hosts.config', host_id=host._id) }}" target="_blank">View Config</a>
-<a class="btn btn-primary" href="{{ url_for('hosts.config', host_id=host._id, download=1) }}">Download Config</a>
+<h3 class="mt-4">Tunnel Config (per interface)</h3>
+<table class="table">
+  <thead><tr><th>Network</th><th>Interface</th><th>IP</th><th></th><th></th></tr></thead>
+  <tbody>
+    {% for item in interfaces %}
+    <tr>
+      <td>{% if item.network %}<a href="{{ url_for('networks.view_network', network_id=item.membership.network_id) }}"><i class="bi bi-diagram-3"></i> {{ item.network.name }}</a>{% else %}{{ item.membership.network_id }}{% endif %}</td>
+      <td><code>{{ item.interface_name }}</code></td>
+      <td><code>{{ item.membership.ip }}</code></td>
+      <td><a class="btn btn-sm btn-secondary" href="{{ url_for('hosts.config', host_id=host._id, network_id=item.membership.network_id) }}" target="_blank">View Config</a></td>
+      <td><a class="btn btn-sm btn-primary" href="{{ url_for('hosts.config', host_id=host._id, network_id=item.membership.network_id, download=1) }}">Download</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No network memberships — no interfaces to export.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
 {% endblock %}
 {% block extra_scripts %}
 <script src="https://cdn.jsdelivr.net/npm/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
