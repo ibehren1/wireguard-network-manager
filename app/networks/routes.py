@@ -214,7 +214,15 @@ def view_network(network_id):
         rows=rows,
         truncated=truncated,
         assigned_count=len(assignments),
-        children=[{"id": str(doc["_id"]), "name": doc["name"], "cidr": doc["cidr"]} for doc, _ in children],
+        children=[
+            {
+                "id": str(doc["_id"]),
+                "name": doc["name"],
+                "cidr": doc["cidr"],
+                "used_count": _used_ip_count(doc["_id"]),
+            }
+            for doc, _ in children
+        ],
     )
 
 

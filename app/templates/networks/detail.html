@@ -10,15 +10,23 @@
   <dt class="col-sm-2">CIDR</dt><dd class="col-sm-10"><code>{{ network.cidr }}</code></dd>
   <dt class="col-sm-2">Description</dt><dd class="col-sm-10">{{ network.description or "-" }}</dd>
   <dt class="col-sm-2">Assigned IPs</dt><dd class="col-sm-10">{{ assigned_count }}</dd>
-  {% if children %}
-  <dt class="col-sm-2">Subnets</dt>
-  <dd class="col-sm-10">
-    {% for child in children %}
-      <a href="{{ url_for('networks.view_network', network_id=child.id) }}" class="me-3"><i class="bi bi-diagram-3"></i> {{ child.name }} (<code>{{ child.cidr }}</code>)</a>
-    {% endfor %}
-  </dd>
-  {% endif %}
 </dl>
+
+{% if children %}
+<h3 class="mt-4">Subnets</h3>
+<table class="table table-sm">
+  <thead><tr><th>Name</th><th>CIDR</th><th>Assigned IPs</th></tr></thead>
+  <tbody>
+    {% for child in children %}
+    <tr>
+      <td><a href="{{ url_for('networks.view_network', network_id=child.id) }}"><i class="bi bi-diagram-3"></i> {{ child.name }}</a></td>
+      <td><code>{{ child.cidr }}</code></td>
+      <td>{{ child.used_count }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 
 <h3 class="mt-4">Address Table</h3>
 {% if truncated %}
