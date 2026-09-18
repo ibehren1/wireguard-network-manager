@@ -119,14 +119,16 @@ override `AllowedIPs` at export time without necessarily persisting the override
   detail page; unassigned addresses show "free"). Capped at 1024 addresses for
   a full listing — larger networks (e.g. a /16) fall back to showing assigned
   IPs only, since enumerating every address wouldn't be useful anyway.
-- **Topology graphs** (`vis-network` via CDN, no build step): a global graph at
-  `/topology` (all Networks/Hosts/Clients and their relationships), plus a
-  focused one-hop-neighborhood graph embedded on each Host's and Client's
-  detail page (`/hosts/<id>/graph.json`, `/clients/<id>/graph.json`,
-  `/topology/graph.json` feed the respective `<div id="graph">`). Node
-  shape/color convention: Host = blue box, Client = green ellipse, Network =
-  gray diamond. Edges: dashed gray = network membership, solid green arrow =
-  Client→Host connection, solid blue double-arrow = Host↔Host peer connection.
+- **Topology graphs** (`vis-network` via CDN, no build step): a global graph
+  (all Networks/Hosts/Clients and their relationships) is embedded directly on
+  the dashboard (main page), underneath the stat cards, plus a focused
+  one-hop-neighborhood graph embedded on each Host's and Client's detail page
+  (`/hosts/<id>/graph.json`, `/clients/<id>/graph.json` feed the respective
+  `<div id="graph">`). `/topology/graph.json` is a pure JSON API (no page of
+  its own) that feeds the dashboard's graph. Node shape/color convention:
+  Host = blue box, Client = green ellipse, Network = gray diamond. Edges:
+  dashed gray = network membership, solid green arrow = Client→Host
+  connection, solid blue double-arrow = Host↔Host peer connection.
   Graph-building logic lives in `app/services/graph.py`.
 
 ## Docker packaging
