@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \

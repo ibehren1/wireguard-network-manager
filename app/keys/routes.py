@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 from bson import ObjectId
 from flask import flash, redirect, render_template, url_for
 from flask_login import login_required

@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 from cryptography.fernet import Fernet
 from flask_login import LoginManager
 from pymongo import MongoClient

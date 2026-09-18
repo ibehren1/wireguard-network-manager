@@ -1,3 +1,5 @@
+<!-- Copyright © 2026 Isaac Behrens. All rights reserved. -->
+
 # WireGuard Network Manager
 
 Web app to manage WireGuard Hosts, Clients, Networks (IPAM), and Keys, with visual
@@ -420,6 +422,35 @@ Export UI lets the user copy or download the generated file, with an option to o
     tuned generously to accommodate the fixed 170px-wide network boxes
     without nodes crowding/overlapping.
   - Graph-building logic lives in `app/services/graph.py`.
+
+## Licensing
+
+- MIT License (`LICENSE` at repo root). Copyright line used everywhere in this
+  project: `Copyright © 2026 Isaac Behrens. All rights reserved.`
+- **Every file in this repo carries that line as a header comment, in the
+  comment syntax appropriate to its type — and every new file created from
+  now on must too, at creation time, not as a follow-up cleanup pass:**
+  - Python (`.py`): `# Copyright © 2026 Isaac Behrens. All rights reserved.`
+    as the first line (or the line right after a shebang, if present), then a
+    blank line.
+  - Shell (`.sh`): same `#` comment, placed after the shebang line (never
+    before it — a shebang must be line 1 to work).
+  - Jinja templates (`.html`): `{# Copyright © 2026 Isaac Behrens. All rights
+    reserved. #}` as the first line — a Jinja comment, stripped at render
+    time, so it never leaks into page output.
+  - `Dockerfile`, `docker-compose.yml`, `Makefile`, `pyproject.toml`,
+    `.gitignore`, `.env.example`: `#` comment, first line, then a blank line.
+  - `supervisord.conf` (INI): `;` comment (INI's native comment char), first
+    line, then a blank line.
+  - Markdown (`README.md`, `CLAUDE.md`, `ARCHITECTURE.md`): an HTML comment
+    (`<!-- Copyright © 2026 Isaac Behrens. All rights reserved. -->`) as the
+    first line, then a blank line — invisible in rendered Markdown, present
+    in source.
+  - **Exception**: `VERSION` — it's read via a plain `.read().strip()` (see
+    "Versioning" below) with no comment-line handling, so a header would
+    corrupt the version string. Leave it as a bare version number, nothing
+    else. Auto-generated/lockfile-style files (e.g. `uv.lock`) are also
+    exempt — they get rewritten by tooling, not hand-authored.
 
 ## Versioning
 

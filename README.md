@@ -1,3 +1,5 @@
+<!-- Copyright © 2026 Isaac Behrens. All rights reserved. -->
+
 # WireGuard Network Manager
 
 Web app for managing WireGuard Hosts, Clients, Networks (IPAM), and Keys, with

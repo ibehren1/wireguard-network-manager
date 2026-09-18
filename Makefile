@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 SHELL := /bin/bash
 COMPOSE := docker compose -f docker/docker-compose.yml --project-directory .
 VERSION := $(shell cat VERSION)

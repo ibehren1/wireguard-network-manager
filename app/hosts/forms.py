@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 from flask_wtf import FlaskForm
 from wtforms import IntegerField, SelectField, StringField
 from wtforms.validators import DataRequired, NumberRange, Optional

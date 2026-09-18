@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 from bson import ObjectId
 
 from app.extensions import get_db

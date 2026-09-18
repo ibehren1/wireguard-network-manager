@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 import base64
 
 from nacl.public import PrivateKey

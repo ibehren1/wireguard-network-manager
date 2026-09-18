@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 from flask import jsonify
 from flask_login import login_required
 

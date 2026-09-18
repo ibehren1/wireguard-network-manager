@@ -1,3 +1,5 @@
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 [project]
 name = "wireguard-network-manager"
 version = "0.1.0"

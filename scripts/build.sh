@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Copyright © 2026 Isaac Behrens. All rights reserved.
+
 set -euo pipefail
 
 # Usage: scripts/build.sh [Local|Dev|PubDev|Prod]

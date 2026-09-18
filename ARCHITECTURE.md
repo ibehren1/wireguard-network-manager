@@ -1,3 +1,5 @@
+<!-- Copyright © 2026 Isaac Behrens. All rights reserved. -->
+
 # Architecture
 
 Onboarding reference for engineers new to this codebase. For day-to-day build
