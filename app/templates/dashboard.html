@@ -9,7 +9,7 @@
   <div class="col-md-3">
     <div class="card text-center mb-3">
       <div class="card-body">
-        <h5 class="card-title">Networks</h5>
+        <h5 class="card-title"><i class="bi bi-diagram-3"></i> Networks</h5>
         <p class="display-6">{{ counts.networks }}</p>
         <a href="{{ url_for('networks.list_networks') }}">View</a>
       </div>
@@ -18,7 +18,7 @@
   <div class="col-md-3">
     <div class="card text-center mb-3">
       <div class="card-body">
-        <h5 class="card-title">Hosts</h5>
+        <h5 class="card-title"><i class="bi bi-hdd-rack"></i> Hosts</h5>
         <p class="display-6">{{ counts.hosts }}</p>
         <a href="{{ url_for('hosts.list_hosts') }}">View</a>
       </div>
@@ -27,7 +27,7 @@
   <div class="col-md-3">
     <div class="card text-center mb-3">
       <div class="card-body">
-        <h5 class="card-title">Clients</h5>
+        <h5 class="card-title"><i class="bi bi-laptop"></i> Clients</h5>
         <p class="display-6">{{ counts.clients }}</p>
         <a href="{{ url_for('clients.list_clients') }}">View</a>
       </div>
@@ -36,7 +36,7 @@
   <div class="col-md-3">
     <div class="card text-center mb-3">
       <div class="card-body">
-        <h5 class="card-title">Keys</h5>
+        <h5 class="card-title"><i class="bi bi-key"></i> Keys</h5>
         <p class="display-6">{{ counts["keys"] }}</p>
         <a href="{{ url_for('keys.list_keys') }}">View</a>
       </div>

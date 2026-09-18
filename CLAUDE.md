@@ -284,12 +284,16 @@ Export UI lets the user copy or download the generated file, with an option to o
 
 ## Visual/UI conventions
 
-- Icons (Bootstrap Icons via CDN): Hosts = `bi-server`, Clients = `bi-laptop`,
-  Networks = `bi-diagram-3`. Used consistently in tables and links across
-  Networks/Hosts/Clients/Keys pages so entity type is recognizable at a glance.
+- Icons (Bootstrap Icons via CDN): Hosts = `bi-hdd-rack` (a rack-server glyph —
+  deliberately not `bi-server`, which reads as a database/stacked-disks icon
+  to most people at a glance), Clients = `bi-laptop`, Networks = `bi-diagram-3`,
+  Keys = `bi-key`. Used consistently everywhere an entity's name/link appears —
+  every list table, every detail-page heading, the navbar, the dashboard's stat
+  cards, and every form page whose heading names a specific Host/Client — so
+  entity type is recognizable at a glance regardless of which page you're on.
 - **Networks list/detail pages**: both show a "Type" column/row with the network's
   `networkType` display label; when the type is `host_network`, the managing Host's
-  name is shown alongside it as a link to that Host's detail page (`bi-server` icon).
+  name is shown alongside it as a link to that Host's detail page (`bi-hdd-rack` icon).
   The list page's column order is CIDR, Name, Description, Type, Assigned IPs.
 - **Host list/detail pages**: the Hosts list shows an "Interfaces" column (just the
   `network_memberships` count — no more Hostname/Listen Port columns, since those are

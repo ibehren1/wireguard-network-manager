@@ -68,7 +68,7 @@
     <tbody>
       {% for item in iface.connections %}
       <tr>
-        <td>{% if item.host %}<a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-server"></i> {{ item.host.name }}</a>{% else %}(deleted host){% endif %}</td>
+        <td>{% if item.host %}<a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-hdd-rack"></i> {{ item.host.name }}</a>{% else %}(deleted host){% endif %}</td>
         <td>
           {% set aset = allowed_ips_sets.get(item.connection.allowed_ips_set_id) %}
           {{ aset.name ~ " (" ~ aset.cidrs ~ ")" if aset else "-" }}

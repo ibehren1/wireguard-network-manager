@@ -16,7 +16,7 @@
       <td>
         {{ net.network_type_label }}
         {% if net.managing_host %}
-        <br><a href="{{ url_for('hosts.detail', host_id=net.managing_host.id) }}"><i class="bi bi-server"></i> {{ net.managing_host.name }}</a>
+        <br><a href="{{ url_for('hosts.detail', host_id=net.managing_host.id) }}"><i class="bi bi-hdd-rack"></i> {{ net.managing_host.name }}</a>
         {% endif %}
       </td>
       <td>{{ net.used_count }}</td>

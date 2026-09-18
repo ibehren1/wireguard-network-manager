@@ -10,7 +10,7 @@
   <tbody>
     {% for host in hosts %}
     <tr>
-      <td><a href="{{ url_for('hosts.detail', host_id=host._id) }}">{{ host.name }}</a></td>
+      <td><a href="{{ url_for('hosts.detail', host_id=host._id) }}"><i class="bi bi-hdd-rack"></i> {{ host.name }}</a></td>
       <td>{{ host.network_memberships|length }}</td>
       <td>
         <a href="{{ url_for('hosts.edit_host', host_id=host._id) }}">Edit</a>

@@ -5,7 +5,7 @@
 {% endblock %}
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
-  <h1><i class="bi bi-server"></i> {{ host.name }}</h1>
+  <h1><i class="bi bi-hdd-rack"></i> {{ host.name }}</h1>
   <div>
     <a class="btn btn-secondary" href="{{ url_for('hosts.edit_host', host_id=host._id) }}">Edit</a>
     <form method="post" action="{{ url_for('hosts.delete_host', host_id=host._id) }}" class="d-inline" onsubmit="return confirm('Delete this host?');">
@@ -81,7 +81,7 @@
   <tbody>
     {% for item in peer_hosts %}
     <tr>
-      <td><a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-server"></i> {{ item.host.name }}</a></td>
+      <td><a href="{{ url_for('hosts.detail', host_id=item.host._id) }}"><i class="bi bi-hdd-rack"></i> {{ item.host.name }}</a></td>
       <td>{{ networks[item.connection.network_id].name if item.connection.network_id in networks else item.connection.network_id }}</td>
       <td>{{ item.computed_endpoint }}</td>
       <td>

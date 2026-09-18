@@ -14,10 +14,10 @@
     <div class="container">
       <a class="navbar-brand" href="{{ url_for('main.dashboard') }}">WireGuard Network Manager</a>
       <div class="navbar-nav">
-        <a class="nav-link" href="{{ url_for('networks.list_networks') }}">Networks</a>
-        <a class="nav-link" href="{{ url_for('hosts.list_hosts') }}">Hosts</a>
-        <a class="nav-link" href="{{ url_for('clients.list_clients') }}">Clients</a>
-        <a class="nav-link" href="{{ url_for('keys.list_keys') }}">Keys</a>
+        <a class="nav-link" href="{{ url_for('networks.list_networks') }}"><i class="bi bi-diagram-3"></i> Networks</a>
+        <a class="nav-link" href="{{ url_for('hosts.list_hosts') }}"><i class="bi bi-hdd-rack"></i> Hosts</a>
+        <a class="nav-link" href="{{ url_for('clients.list_clients') }}"><i class="bi bi-laptop"></i> Clients</a>
+        <a class="nav-link" href="{{ url_for('keys.list_keys') }}"><i class="bi bi-key"></i> Keys</a>
         <a class="nav-link" href="{{ url_for('dns_servers.list_dns_servers') }}">DNS Servers</a>
         <a class="nav-link" href="{{ url_for('allowed_ips.list_allowed_ips_sets') }}">Allowed IPs</a>
       </div>

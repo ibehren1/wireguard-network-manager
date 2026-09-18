@@ -17,7 +17,7 @@
         {% if usages %}
           {% for u in usages %}
             {% if u.type == "host_interface" %}
-              <a href="{{ url_for('hosts.detail', host_id=u.host_id) }}"><i class="bi bi-server"></i> {{ u.name }}</a>
+              <a href="{{ url_for('hosts.detail', host_id=u.host_id) }}"><i class="bi bi-hdd-rack"></i> {{ u.name }}</a>
             {% else %}
               <a href="{{ url_for('clients.detail', client_id=u.id) }}"><i class="bi bi-laptop"></i> {{ u.name }}</a>
             {% endif %}

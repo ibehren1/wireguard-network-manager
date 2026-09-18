@@ -12,7 +12,7 @@
   <dt class="col-sm-2">Type</dt><dd class="col-sm-10">{{ network.network_type_label }}</dd>
   {% if network.managing_host %}
   <dt class="col-sm-2">Managing Host</dt>
-  <dd class="col-sm-10"><a href="{{ url_for('hosts.detail', host_id=network.managing_host.id) }}"><i class="bi bi-server"></i> {{ network.managing_host.name }}</a></dd>
+  <dd class="col-sm-10"><a href="{{ url_for('hosts.detail', host_id=network.managing_host.id) }}"><i class="bi bi-hdd-rack"></i> {{ network.managing_host.name }}</a></dd>
   {% endif %}
   <dt class="col-sm-2">Assigned IPs</dt><dd class="col-sm-10">{{ assigned_count }}</dd>
 </dl>
@@ -47,7 +47,7 @@
         {% if row.kind == "reserved" %}
           <em>{{ row.label }} (unusable)</em>
         {% elif row.kind == "host" %}
-          <a href="{{ url_for('hosts.detail', host_id=row.id) }}"><i class="bi bi-server"></i> {{ row.name }}</a>
+          <a href="{{ url_for('hosts.detail', host_id=row.id) }}"><i class="bi bi-hdd-rack"></i> {{ row.name }}</a>
         {% elif row.kind == "client" %}
           <a href="{{ url_for('clients.detail', client_id=row.id) }}"><i class="bi bi-laptop"></i> {{ row.name }}</a>
         {% elif row.kind == "subnet" %}
