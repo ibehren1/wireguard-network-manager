@@ -23,6 +23,11 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 - Private keys encrypted at rest with **Fernet**, key from `ENCRYPTION_KEY` env var
   (separate from `SECRET_KEY`). Decrypt only when generating tunnel files or
   displaying to the user.
+- Both the public and private key are shown on a Host's/Client's detail page
+  (decrypted on the fly via `decrypt_private_key()`, never stored decrypted).
+  This is a deliberate choice, not an oversight — the app is a single-admin
+  internal tool, so there's no untrusted-viewer concern that would call for
+  masking, a reveal step, or a copy button.
 - Every key has a required `name` (shown wherever a key is displayed, e.g.
   `office-gw (Vr5M...)`, and used as the label in any dropdown that lists keys).
   The name can be edited after creation via `/keys/<id>/edit`, regardless of

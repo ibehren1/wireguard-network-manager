@@ -24,6 +24,7 @@
   <dt class="col-sm-2">DNS</dt><dd class="col-sm-10">{{ dns_server.name if dns_server else "-" }}</dd>
   <dt class="col-sm-2">MTU</dt><dd class="col-sm-10">{{ host.mtu or "-" }}</dd>
   <dt class="col-sm-2">Public Key</dt><dd class="col-sm-10">{% if key %}{{ key.get("name") or "(unnamed)" }} (<code>{{ key.get("public_key") or "-" }}</code>){% else %}-{% endif %}</dd>
+  <dt class="col-sm-2">Private Key</dt><dd class="col-sm-10"><code>{{ private_key or "-" }}</code></dd>
 </dl>
 
 <h3 class="mt-4">Connections Graph</h3>
