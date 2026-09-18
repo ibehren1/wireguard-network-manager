@@ -46,7 +46,7 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 
 - **Clients only ever connect to Hosts** — never Client-to-Client.
 - **Hosts can connect to other Hosts** — covers `/30` point-to-point links; either
-  side may be the one dialing out (both can have `endpoint` set).
+  side may be the one dialing out (both can have `hostname` set).
 - No PresharedKey support (deferred — not implemented yet).
 
 ## Data model
@@ -59,7 +59,11 @@ Single admin account. Credentials seeded from env vars (`ADMIN_USERNAME`,
 - Pure IPAM pool; tracks which IPs in the CIDR are assigned to which Host/Client.
 
 **WireGuardHost**
-- `name`, `activeKeyId`, `endpoint` (optional `host:port`, set when this Host should be dialable), `listenPort`, `dns` (optional), `mtu` (optional).
+- `name`, `activeKeyId`, `hostname` (optional bare hostname/IP, no port, set when this
+  Host should be dialable), `listenPort`, `dns` (optional), `mtu` (optional). The peer
+  "Endpoint" value (`host:port`) is never stored directly — it's always computed as
+  `f"{hostname}:{listenPort}"` when both are set (a per-connection `endpointOverride`
+  can still override this at the connection level).
 - `networkMemberships`: `[{networkId, ip}, ...]` — a Host can belong to multiple Networks, one IP per Network.
 - `peerConnections` (Host↔Host, for P2P links): `[{peerHostId, allowedIps, endpointOverride?, persistentKeepalive?}, ...]`.
 - Serves as the peer target for any Clients attached to it.
@@ -88,7 +92,7 @@ PersistentKeepalive = <if set>
 
 [Peer]   # one per Host-Host connection
 PublicKey = <peer host public key>
-Endpoint = <peer host endpoint, if it has one>
+Endpoint = <computed as peer hostname:listenPort, or endpointOverride if set>
 AllowedIPs = <per-connection allowedIps>
 ```
 
@@ -101,7 +105,7 @@ DNS = <if set>
 
 [Peer]   # one per Host connection
 PublicKey = <host public key>
-Endpoint = <host endpoint>
+Endpoint = <computed as host hostname:listenPort, if both set>
 AllowedIPs = <per-connection allowedIps, default = network CIDR>
 PersistentKeepalive = 10   # default, editable
 ```
