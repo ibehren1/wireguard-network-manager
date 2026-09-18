@@ -177,17 +177,37 @@ def view_network(network_id):
     child_assignments = [(doc, child, _assignments(doc["_id"])) for doc, child in children]
     has_reserved = network.num_addresses >= 4
 
-    def resolve(ip_addr, ip_str):
-        if ip_str in assignments:
-            return {"kind": assignments[ip_str]["type"], **assignments[ip_str]}
+    def _containing_child(ip_addr):
+        """Most specific child (doc, child, child_assign) containing ip_addr, or None.
+
+        `child_assignments` is already ordered most-specific-first (see
+        `_child_networks`), so the first match is the most specific one.
+        """
         for doc, child, child_assign in child_assignments:
-            if ip_addr not in child:
-                continue
-            if ip_str in child_assign:
-                a = child_assign[ip_str]
-                return {"kind": a["type"], **a, "via_network": {"id": str(doc["_id"]), "name": doc["name"]}}
-            return {"kind": "subnet", "id": str(doc["_id"]), "name": doc["name"]}
-        return {"kind": "free"}
+            if ip_addr in child:
+                return doc, child, child_assign
+        return None
+
+    def _subnet_ref(ip_addr):
+        """{"id", "name"} of the most specific child containing ip_addr, or None."""
+        match = _containing_child(ip_addr)
+        if match is None:
+            return None
+        doc, _, _ = match
+        return {"id": str(doc["_id"]), "name": doc["name"]}
+
+    def resolve(ip_addr, ip_str):
+        subnet_ref = _subnet_ref(ip_addr)
+        if ip_str in assignments:
+            return {"kind": assignments[ip_str]["type"], **assignments[ip_str], "subnet": subnet_ref}
+        match = _containing_child(ip_addr)
+        if match is None:
+            return {"kind": "free", "subnet": None}
+        _, _, child_assign = match
+        if ip_str in child_assign:
+            a = child_assign[ip_str]
+            return {"kind": a["type"], **a, "subnet": subnet_ref}
+        return {"kind": "subnet", "subnet": subnet_ref}
 
     rows = []
     truncated = network.num_addresses > MAX_FULL_TABLE_SIZE
@@ -195,18 +215,42 @@ def view_network(network_id):
         for ip_addr in network:
             ip_str = str(ip_addr)
             if has_reserved and ip_addr == network.network_address:
-                rows.append({"ip": ip_str, "kind": "reserved", "label": "Network"})
+                subnet_ref = _subnet_ref(ip_addr)
+                if subnet_ref:
+                    rows.append({"ip": ip_str, "kind": "subnet", "subnet": subnet_ref})
+                else:
+                    rows.append({"ip": ip_str, "kind": "reserved", "label": "Network", "subnet": None})
             elif has_reserved and ip_addr == network.broadcast_address:
-                rows.append({"ip": ip_str, "kind": "reserved", "label": "Broadcast"})
+                subnet_ref = _subnet_ref(ip_addr)
+                if subnet_ref:
+                    rows.append({"ip": ip_str, "kind": "subnet", "subnet": subnet_ref})
+                else:
+                    rows.append({"ip": ip_str, "kind": "reserved", "label": "Broadcast", "subnet": None})
             else:
                 rows.append({"ip": ip_str, **resolve(ip_addr, ip_str)})
     else:
         combined = dict(assignments)
         for doc, child, child_assign in child_assignments:
             for ip_str, a in child_assign.items():
-                combined.setdefault(ip_str, {**a, "via_network": {"id": str(doc["_id"]), "name": doc["name"]}})
+                combined.setdefault(ip_str, {**a, "subnet": {"id": str(doc["_id"]), "name": doc["name"]}})
         for ip_str, a in sorted(combined.items(), key=lambda kv: ipaddress.ip_address(kv[0])):
             rows.append({"ip": ip_str, "kind": a["type"], **a})
+
+    display_children = [
+        {
+            "id": str(doc["_id"]),
+            "name": doc["name"],
+            "cidr": doc["cidr"],
+            "used_count": _used_ip_count(doc["_id"]),
+        }
+        for doc, _ in children
+    ]
+    display_children.sort(
+        key=lambda c: (
+            int(ipaddress.ip_network(c["cidr"], strict=True).network_address),
+            ipaddress.ip_network(c["cidr"], strict=True).prefixlen,
+        )
+    )
 
     return render_template(
         "networks/detail.html",
@@ -214,15 +258,7 @@ def view_network(network_id):
         rows=rows,
         truncated=truncated,
         assigned_count=len(assignments),
-        children=[
-            {
-                "id": str(doc["_id"]),
-                "name": doc["name"],
-                "cidr": doc["cidr"],
-                "used_count": _used_ip_count(doc["_id"]),
-            }
-            for doc, _ in children
-        ],
+        children=display_children,
     )
 
 

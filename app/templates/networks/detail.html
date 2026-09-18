@@ -33,7 +33,7 @@
 <p class="text-muted">This network is too large to list every address; showing assigned IPs only (including those assigned via subnets of this network).</p>
 {% endif %}
 <table class="table table-sm">
-  <thead><tr><th>IP</th><th>Host/Client</th></tr></thead>
+  <thead><tr><th>IP</th><th>Host/Client</th><th>Subnet</th></tr></thead>
   <tbody>
     {% for row in rows %}
     <tr class="{{ 'text-muted' if row.kind == 'reserved' else '' }}">
@@ -43,19 +43,22 @@
           <em>{{ row.label }} (unusable)</em>
         {% elif row.kind == "host" %}
           <a href="{{ url_for('hosts.detail', host_id=row.id) }}"><i class="bi bi-server"></i> {{ row.name }}</a>
-          {% if row.via_network %}<span class="text-muted">via <a href="{{ url_for('networks.view_network', network_id=row.via_network.id) }}">{{ row.via_network.name }}</a></span>{% endif %}
         {% elif row.kind == "client" %}
           <a href="{{ url_for('clients.detail', client_id=row.id) }}"><i class="bi bi-laptop"></i> {{ row.name }}</a>
-          {% if row.via_network %}<span class="text-muted">via <a href="{{ url_for('networks.view_network', network_id=row.via_network.id) }}">{{ row.via_network.name }}</a></span>{% endif %}
         {% elif row.kind == "subnet" %}
-          <a href="{{ url_for('networks.view_network', network_id=row.id) }}"><i class="bi bi-diagram-3"></i> part of subnet: {{ row.name }}</a>
+          <span class="text-muted">part of subnet</span>
         {% else %}
           <span class="text-muted">free</span>
         {% endif %}
       </td>
+      <td>
+        {% if row.subnet %}
+          <a href="{{ url_for('networks.view_network', network_id=row.subnet.id) }}"><i class="bi bi-diagram-3"></i> {{ row.subnet.name }}</a>
+        {% endif %}
+      </td>
     </tr>
     {% else %}
-    <tr><td colspan="2">No addresses to show.</td></tr>
+    <tr><td colspan="3">No addresses to show.</td></tr>
     {% endfor %}
   </tbody>
 </table>
