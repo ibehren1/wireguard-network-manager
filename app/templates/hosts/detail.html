@@ -111,8 +111,8 @@ fetch("{{ url_for('hosts.graph_json', host_id=host._id) }}")
     new vis.Network(document.getElementById("graph"), {nodes, edges}, {
       nodes: {font: {size: 14}},
       edges: {font: {size: 11}, arrows: {to: {enabled: true, scaleFactor: 0.5}}},
-      physics: {stabilization: true},
-      layout: {improvedLayout: true}
+      physics: false,
+      layout: {hierarchical: {direction: "UD", levelSeparation: 150, nodeSpacing: 170}}
     });
   });
 </script>

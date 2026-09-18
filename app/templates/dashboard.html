@@ -51,6 +51,20 @@
   <span class="badge" style="background:#6c757d;">&nbsp;&nbsp;</span> Network &nbsp;
   Dashed lines are network memberships; solid arrows are Client&rarr;Host or Host&harr;Host connections.
 </p>
+<div class="mb-2">
+  <div class="form-check form-check-inline">
+    <input class="form-check-input graph-filter" type="checkbox" id="filter-network" data-category="network" checked>
+    <label class="form-check-label" for="filter-network">Networks</label>
+  </div>
+  <div class="form-check form-check-inline">
+    <input class="form-check-input graph-filter" type="checkbox" id="filter-host" data-category="host" checked>
+    <label class="form-check-label" for="filter-host">Hosts</label>
+  </div>
+  <div class="form-check form-check-inline">
+    <input class="form-check-input graph-filter" type="checkbox" id="filter-client" data-category="client">
+    <label class="form-check-label" for="filter-client">Clients</label>
+  </div>
+</div>
 <div id="graph" style="height: 600px; border: 1px solid #dee2e6; border-radius: 4px;"></div>
 {% endblock %}
 {% block extra_scripts %}
@@ -59,13 +73,25 @@
 fetch("{{ url_for('topology.graph_json') }}")
   .then(r => r.json())
   .then(data => {
+    const visibility = {};
+    document.querySelectorAll(".graph-filter").forEach(cb => { visibility[cb.dataset.category] = cb.checked; });
+    data.nodes.forEach(n => { n.hidden = !visibility[n.category]; });
+
     const nodes = new vis.DataSet(data.nodes);
     const edges = new vis.DataSet(data.edges);
     new vis.Network(document.getElementById("graph"), {nodes, edges}, {
       nodes: {font: {size: 14}},
       edges: {font: {size: 11}, arrows: {to: {enabled: true, scaleFactor: 0.5}}},
-      physics: {stabilization: true},
-      layout: {improvedLayout: true}
+      physics: false,
+      layout: {hierarchical: {direction: "UD", levelSeparation: 150, nodeSpacing: 170}}
+    });
+
+    document.querySelectorAll(".graph-filter").forEach(cb => {
+      cb.addEventListener("change", () => {
+        const category = cb.dataset.category;
+        const updates = nodes.get({filter: n => n.category === category}).map(n => ({id: n.id, hidden: !cb.checked}));
+        nodes.update(updates);
+      });
     });
   });
 </script>

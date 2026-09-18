@@ -179,11 +179,35 @@ override `AllowedIPs` at export time without necessarily persisting the override
   one-hop-neighborhood graph embedded on each Host's and Client's detail page
   (`/hosts/<id>/graph.json`, `/clients/<id>/graph.json` feed the respective
   `<div id="graph">`). `/topology/graph.json` is a pure JSON API (no page of
-  its own) that feeds the dashboard's graph. Node shape/color convention:
-  Host = blue box, Client = green ellipse, Network = gray diamond. Edges:
-  dashed gray = network membership, solid green arrow = Client→Host
-  connection, solid blue double-arrow = Host↔Host peer connection.
-  Graph-building logic lives in `app/services/graph.py`.
+  its own) that feeds the dashboard's graph.
+  - **Static, not physics-simulated**: every graph uses `physics: false` plus
+    vis-network's `hierarchical` layout (`direction: "UD"`) — no jiggle, and
+    every node carries an explicit `level` (see below) rather than letting
+    vis-network infer position from edges.
+  - **Vertical ordering**: Networks sit at the top. A Network's `level` is its
+    CIDR nesting depth among the networks in that particular graph (root/
+    top-level = 0, a subnet of it = 1, a subnet of that = 2, ...), with an
+    explicit supernet→subnet edge drawn between a network and its most
+    specific containing network. A Host/Client's `level` is one below the
+    network(s) it belongs to; if attached to networks at different levels, it
+    sits at the midpoint between them rather than below the deepest one
+    (`_member_level` in `app/services/graph.py`).
+  - **Category filter** (dashboard only): each node carries a `category`
+    (`"network"`/`"host"`/`"client"`); checkboxes above the dashboard graph
+    toggle a node's `hidden` flag per category (vis-network automatically
+    hides edges attached to a hidden node). Default: Networks and Hosts
+    checked, Clients unchecked.
+  - Node shape/color/size convention: Host = blue box, Client = green
+    ellipse, Network = gray **database**-shaped node, larger font, labeled
+    with both name and CIDR (e.g. `"LAN\n10.0.0.0/24"`) — chosen because
+    box/ellipse/database are the vis-network shapes that size themselves to
+    fit their label drawn *inside* the shape, unlike diamond/dot/star which
+    draw the label below a fixed-size shape.
+  - Edges: dashed gray = network membership, solid gray = network
+    supernet→subnet containment, solid green arrow = Client→Host connection,
+    solid blue double-arrow = Host↔Host peer connection. `AllowedIPs` edge
+    labels resolve the connection's `allowedIpsSetId` to its `cidrs` string.
+  - Graph-building logic lives in `app/services/graph.py`.
 
 ## Docker packaging
 
