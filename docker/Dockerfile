@@ -24,7 +24,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
 COPY . .
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 EXPOSE 5000
 VOLUME ["/data/db"]

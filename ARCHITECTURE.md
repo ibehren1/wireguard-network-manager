@@ -153,8 +153,8 @@ flowchart TB
 ## 3. Request / deployment architecture
 
 Everything — app server and database — runs in **one Docker container**,
-supervised by `supervisord` (`supervisord.conf`, copied into the image by
-`Dockerfile`). `supervisord` runs two long-lived programs:
+supervised by `supervisord` (`docker/supervisord.conf`, copied into the image
+by `docker/Dockerfile`). `supervisord` runs two long-lived programs:
 
 - `mongod`, bound to `127.0.0.1:27017` only (not exposed outside the
   container), data directory `/data/db` (a named volume, `mongo_data`, so
