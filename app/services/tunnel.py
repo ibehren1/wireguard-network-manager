@@ -30,8 +30,10 @@ def render_host_config(host_id):
         lines.append(f"Address = {address}")
     if host.get("listen_port"):
         lines.append(f"ListenPort = {host['listen_port']}")
-    if host.get("dns"):
-        lines.append(f"DNS = {host['dns']}")
+    if host.get("dns_server_id"):
+        dns_server = db.dns_servers.find_one({"_id": ObjectId(host["dns_server_id"])})
+        if dns_server:
+            lines.append(f"DNS = {dns_server['ips']}")
     if host.get("mtu"):
         lines.append(f"MTU = {host['mtu']}")
 
@@ -64,7 +66,8 @@ def render_host_config(host_id):
         endpoint = pconn.get("endpoint_override") or peer_host.get("endpoint")
         if endpoint:
             lines.append(f"Endpoint = {endpoint}")
-        lines.append(f"AllowedIPs = {pconn['allowed_ips']}")
+        aset = db.allowed_ips.find_one({"_id": ObjectId(pconn["allowed_ips_set_id"])})
+        lines.append(f"AllowedIPs = {aset['cidrs'] if aset else ''}")
         if pconn.get("persistent_keepalive"):
             lines.append(f"PersistentKeepalive = {pconn['persistent_keepalive']}")
 
@@ -84,8 +87,10 @@ def render_client_config(client_id, connection_index=None, allowed_ips_override=
     address = _address_lines(client.get("network_memberships", []), db)
     if address:
         lines.append(f"Address = {address}")
-    if client.get("dns"):
-        lines.append(f"DNS = {client['dns']}")
+    if client.get("dns_server_id"):
+        dns_server = db.dns_servers.find_one({"_id": ObjectId(client["dns_server_id"])})
+        if dns_server:
+            lines.append(f"DNS = {dns_server['ips']}")
 
     connections = client.get("connections", [])
     if connection_index is not None:
@@ -101,7 +106,8 @@ def render_client_config(client_id, connection_index=None, allowed_ips_override=
         lines.append(f"PublicKey = {host_key['public_key']}")
         if host.get("endpoint"):
             lines.append(f"Endpoint = {host['endpoint']}")
-        allowed = conn["allowed_ips"]
+        aset = db.allowed_ips.find_one({"_id": ObjectId(conn["allowed_ips_set_id"])})
+        allowed = aset["cidrs"] if aset else ""
         if allowed_ips_override and connection_index is not None:
             allowed = allowed_ips_override
         lines.append(f"AllowedIPs = {allowed}")

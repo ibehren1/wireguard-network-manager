@@ -9,7 +9,7 @@ class HostForm(FlaskForm):
     listen_port = IntegerField(
         "Listen Port", validators=[Optional(), NumberRange(min=1, max=65535)]
     )
-    dns = StringField("DNS (optional)", validators=[Optional()])
+    dns_server_id = SelectField("DNS Server", validators=[Optional()])
     mtu = IntegerField("MTU (optional)", validators=[Optional(), NumberRange(min=576, max=9000)])
 
 
@@ -40,7 +40,7 @@ class NetworkMembershipForm(FlaskForm):
 class HostPeerConnectionForm(FlaskForm):
     peer_host_id = SelectField("Peer Host", validators=[DataRequired()])
     network_id = SelectField("Shared Network", validators=[DataRequired()])
-    allowed_ips = StringField("AllowedIPs", validators=[DataRequired()])
+    allowed_ips_set_id = SelectField("Allowed IPs", validators=[DataRequired()])
     endpoint_override = StringField("Endpoint Override (optional)", validators=[Optional()])
     persistent_keepalive = IntegerField(
         "PersistentKeepalive (optional)", validators=[Optional(), NumberRange(min=1, max=3600)]

@@ -33,6 +33,19 @@ def _unassigned_key_choices(db):
     ]
 
 
+def _dns_server_choices(db):
+    return [("", "None")] + [
+        (str(d["_id"]), d["name"]) for d in db.dns_servers.find().sort("name", 1)
+    ]
+
+
+def _allowed_ips_choices(db):
+    return [
+        (str(a["_id"]), f"{a['name']} ({a['cidrs']})")
+        for a in db.allowed_ips.find().sort("name", 1)
+    ]
+
+
 @bp.route("/")
 @login_required
 def list_hosts():
@@ -45,6 +58,7 @@ def list_hosts():
 def create_host():
     form = HostCreateForm()
     form.existing_key_id.choices = _unassigned_key_choices(get_db())
+    form.dns_server_id.choices = _dns_server_choices(get_db())
     if form.validate_on_submit():
         if form.key_source.data == "provide":
             public_key = (form.public_key.data or "").strip()
@@ -63,7 +77,7 @@ def create_host():
             "name": form.name.data,
             "endpoint": form.endpoint.data or "",
             "listen_port": form.listen_port.data,
-            "dns": form.dns.data or "",
+            "dns_server_id": form.dns_server_id.data or None,
             "mtu": form.mtu.data,
             "network_memberships": [],
             "peer_connections": [],
@@ -96,6 +110,12 @@ def detail(host_id):
 
     networks = {str(n["_id"]): n for n in db.networks.find()}
     key = db.keys.find_one({"_id": ObjectId(host["active_key_id"])}) if host.get("active_key_id") else None
+    dns_server = (
+        db.dns_servers.find_one({"_id": ObjectId(host["dns_server_id"])})
+        if host.get("dns_server_id")
+        else None
+    )
+    allowed_ips_sets = {str(a["_id"]): a for a in db.allowed_ips.find()}
 
     attached_clients = []
     for client in db.clients.find({"connections.host_id": str(host["_id"])}):
@@ -116,6 +136,8 @@ def detail(host_id):
         host=host,
         networks=networks,
         key=key,
+        dns_server=dns_server,
+        allowed_ips_sets=allowed_ips_sets,
         attached_clients=attached_clients,
         peer_hosts=peer_hosts,
         other_hosts=other_hosts,
@@ -130,7 +152,8 @@ def edit_host(host_id):
         flash("Host not found.", "danger")
         return redirect(url_for("hosts.list_hosts"))
 
-    form = HostForm(data=host)
+    form = HostForm(data={**host, "dns_server_id": host.get("dns_server_id") or ""})
+    form.dns_server_id.choices = _dns_server_choices(get_db())
     if form.validate_on_submit():
         get_db().hosts.update_one(
             {"_id": host["_id"]},
@@ -138,7 +161,7 @@ def edit_host(host_id):
                 "name": form.name.data,
                 "endpoint": form.endpoint.data or "",
                 "listen_port": form.listen_port.data,
-                "dns": form.dns.data or "",
+                "dns_server_id": form.dns_server_id.data or None,
                 "mtu": form.mtu.data,
             }},
         )
@@ -266,6 +289,7 @@ def add_peer_connection(host_id):
     form = HostPeerConnectionForm()
     other_hosts = list(db.hosts.find({"_id": {"$ne": host["_id"]}}))
     form.peer_host_id.choices = [(str(h["_id"]), h["name"]) for h in other_hosts]
+    form.allowed_ips_set_id.choices = _allowed_ips_choices(db)
     networks = {str(n["_id"]): n for n in db.networks.find()}
     my_network_ids = {m["network_id"] for m in host.get("network_memberships", [])}
     form.network_id.choices = [
@@ -293,14 +317,15 @@ def add_peer_connection(host_id):
         ):
             flash("A peer connection to that host on that network already exists.", "danger")
         else:
-            my_ip = _membership_ip(host.get("network_memberships", []), form.network_id.data)
-
+            # Reciprocal peer connection defaults to the SAME AllowedIpsSet the user picked
+            # for the primary side (see CLAUDE.md) rather than auto-creating a /32 preset;
+            # the user can edit it afterward via the remove/re-add flow.
             db.hosts.update_one(
                 {"_id": host["_id"]},
                 {"$push": {"peer_connections": {
                     "peer_host_id": form.peer_host_id.data,
                     "network_id": form.network_id.data,
-                    "allowed_ips": form.allowed_ips.data,
+                    "allowed_ips_set_id": form.allowed_ips_set_id.data,
                     "endpoint_override": form.endpoint_override.data or "",
                     "persistent_keepalive": form.persistent_keepalive.data,
                 }}},
@@ -310,7 +335,7 @@ def add_peer_connection(host_id):
                 {"$push": {"peer_connections": {
                     "peer_host_id": str(host["_id"]),
                     "network_id": form.network_id.data,
-                    "allowed_ips": f"{my_ip}/32",
+                    "allowed_ips_set_id": form.allowed_ips_set_id.data,
                     "endpoint_override": "",
                     "persistent_keepalive": None,
                 }}},
