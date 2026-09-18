@@ -464,14 +464,30 @@ Export UI lets the user copy or download the generated file, with an option to o
   when cutting a release — nothing automated enforces this yet.
 - Release image builds go through `scripts/build.sh [Local|Dev|PubDev|Prod]`
   (image name `wireguard-network-manager`, tags derived from `VERSION`), wrapped
-  by `make local`/`dev`/`pubdev`/`prod`:
-  - `local` — build only, tags `:${VERSION}` + `:latest`, no push.
-  - `dev` — build + push to `$INTERNAL_REG`, tags `dev-latest` / `dev-${VERSION}`.
-  - `pubdev`/`prod` — build + push to Docker Hub under `$DOCKER_USER` (auth via
+  by `make local`/`dev`/`pubdev`/`prod`. All four modes build via
+  `docker buildx build --platform=linux/arm64,linux/amd64` against a named
+  `multi-platform-builder` buildx builder (created on first run via
+  `docker buildx create --use ...`, reused via `docker buildx use` on
+  subsequent runs since `create` errors on an existing name — the script
+  relies on that failure + `||` fallback, not a pre-check).
+  - `local` — builds tags `:${VERSION}` + `:latest`, **no `--push` or
+    `--load`** — a multi-platform buildx build with neither flag doesn't
+    produce a locally-`docker images`-visible image (buildx has nothing to
+    "load" a multi-arch manifest list into the single-arch local image
+    store). Useful today mainly to warm the buildx cache / validate both
+    platforms build; not a substitute for the compose dev loop below if you
+    need to actually run the image locally.
+  - `dev`/`pubdev`/`prod` all pass `--no-cache --push` — always a full
+    rebuild (no layer cache reuse), pushed straight to the registry (multi-
+    arch manifest push, which registries handle natively — no separate
+    `docker push` step needed, unlike a single-platform build+push).
+    `dev` pushes to `$INTERNAL_REG`, tags `dev-latest`/`dev-${VERSION}`.
+    `pubdev`/`prod` push to Docker Hub under `$DOCKER_USER` (auth via
     `$DOCKER_USER`/`$DOCKER_PAT`); `pubdev` tags `dev-latest`/`dev-${VERSION}`,
     `prod` tags `latest`/`${VERSION}`.
   - Distinct from the `make up`/`build`/`down` docker-compose dev loop above —
-    that builds the same `wireguard-network-manager` image name locally
+    that builds the same `wireguard-network-manager` image name locally,
+    single-platform (host arch only), loaded and runnable immediately
     (untagged with a version, just `:latest`, via `docker/docker-compose.yml`)
     rather than through `scripts/build.sh`.
 
