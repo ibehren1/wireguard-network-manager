@@ -423,6 +423,25 @@ Export UI lets the user copy or download the generated file, with an option to o
     without nodes crowding/overlapping.
   - Graph-building logic lives in `app/services/graph.py`.
 
+## Documentation layout
+
+- `README.md` (repo root) — product/marketing view: what the app is for,
+  feature tour with screenshots, and the Docker Compose quick start for the
+  published Docker Hub image (`ibehren1/wireguard-network-manager`). No
+  build-from-source or release instructions here.
+- `docs/DEVELOPMENT.md` — everything build/run/release: prerequisites, the
+  `make` dev loop, compose invocation rules, env vars, Docker packaging
+  internals, dependency changes via `uv`, versioning, `scripts/build.sh`
+  modes, and the manual verification checklist.
+- `docs/ARCHITECTURE.md` — onboarding reference for the codebase shape
+  (blueprints, data model, request path, key decisions), with mermaid
+  diagrams.
+- `CLAUDE.md` (this file) — the exhaustive behavioral/UI spec.
+- `docs/images/*.png` — README screenshots, captured from a locally running
+  stack at a 1440×900 viewport with 2× device scale factor. Never commit a
+  screenshot containing real private key material; the README's example
+  `.conf` is a hand-written code block for that reason.
+
 ## Licensing
 
 - MIT License (`LICENSE` at repo root). Copyright line used everywhere in this
@@ -442,7 +461,7 @@ Export UI lets the user copy or download the generated file, with an option to o
     `.gitignore`, `.env.example`: `#` comment, first line, then a blank line.
   - `supervisord.conf` (INI): `;` comment (INI's native comment char), first
     line, then a blank line.
-  - Markdown (`README.md`, `CLAUDE.md`, `ARCHITECTURE.md`): an HTML comment
+  - Markdown (`README.md`, `CLAUDE.md`, `docs/*.md`): an HTML comment
     (`<!-- Copyright © 2026 Isaac Behrens. All rights reserved. -->`) as the
     first line, then a blank line — invisible in rendered Markdown, present
     in source.
@@ -538,7 +557,7 @@ Export UI lets the user copy or download the generated file, with an option to o
   `127.0.0.1:8080` on the host, not all interfaces), mounts a named volume at
   `/data/db` for Mongo persistence, passes env vars (`ADMIN_USERNAME`,
   `ADMIN_PASSWORD`, `SECRET_KEY`, `ENCRYPTION_KEY`, `MONGO_URI` if needed).
-  README.md's "Deployment" section carries a copy of this file for users
+  README.md's "Quick start" section carries a copy of this file for users
   deploying the published Docker Hub image (`image:` instead of `build:`,
   bound to all interfaces instead of just localhost since it's meant to run
   on a real host, not a laptop) — keep both in sync if either changes.
