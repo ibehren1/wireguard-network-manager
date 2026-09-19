@@ -4,8 +4,9 @@
 
 Onboarding reference for engineers new to this codebase. For day-to-day build
 rules, exact form/field semantics, and the full topology-layout spec, see
-`CLAUDE.md` — this document covers the shape of the system, not every detail
-of its behavior.
+[`CLAUDE.md`](../CLAUDE.md) — this document covers the shape of the system,
+not every detail of its behavior. For how to build, run, and release the app,
+see [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 ## 1. Overview
 
@@ -23,8 +24,16 @@ multi-tenancy, no RBAC.
 The app is a single Flask application (`app/__init__.py:create_app`)
 composed of nine blueprints, each in its own package under `app/`, plus
 shared service/util modules with no blueprint of their own. All blueprints
-talk to MongoDB directly via `app.extensions.get_db()` (a lazily-initialized
-global `pymongo.MongoClient` — no per-request session object, no ODM).
+talk to MongoDB directly via `app.extensions.get_db()` (a process-global
+`pymongo.MongoClient`, built once by `init_mongo()` during `create_app()` —
+no per-request session object, no ODM).
+
+`create_app()` itself does five things beyond registering blueprints: loads
+`app/config.py:Config` (which reads the repo-root `VERSION` file once at
+import), calls `init_mongo()` / `init_fernet()`, initializes Flask-Login
+(`login_view = "auth.login"`), runs `app/bootstrap.py:ensure_admin_user()`
+inside an app context, and registers a context processor exposing
+`app_version` to every template.
 
 **`auth`** (`url_prefix=/auth`) — login/logout. `app/auth/models.py` defines
 the Flask-Login `User` wrapper and `user_loader` over the `users` collection.
@@ -85,8 +94,10 @@ owned by the `hosts`/`clients` blueprints themselves, not this one.
 - `app/keys/service.py` — key generation (PyNaCl), storage (Fernet-encrypted),
   assignment/rotation, and derived usage lookup; called by `hosts`, `clients`,
   and `keys` routes.
-- `app/utils/crypto.py` — keypair generation/derivation, Fernet
-  encrypt/decrypt, key-format validation. No Flask/Mongo dependency.
+- `app/utils/crypto.py` — keypair generation/derivation (PyNaCl), Fernet
+  encrypt/decrypt, key-format validation (`is_valid_wg_key`,
+  `keypair_matches`). No Mongo and no Flask request/app context; its only
+  in-project dependency is `get_fernet()` from `app/extensions.py`.
 - `app/utils/ipam.py` — pure `ipaddress`-based CIDR/IP helpers. No Flask/Mongo
   dependency.
 - `app/extensions.py` — process-global `MongoClient`/`Fernet`/`LoginManager`
@@ -108,23 +119,24 @@ flowchart TB
 
     subgraph SVC["Shared services / utils (no blueprint)"]
         tunnel["services/tunnel.py"]
-        graph["services/graph.py"]
+        graphsvc["services/graph.py"]
         keysvc["keys/service.py"]
         crypto["utils/crypto.py"]
         ipam["utils/ipam.py"]
     end
 
     mongo[("MongoDB<br/>(via extensions.get_db())")]
+    fernet["Fernet<br/>(via extensions.get_fernet())"]
 
     hosts --> keysvc
     hosts --> tunnel
-    hosts --> graph
+    hosts --> graphsvc
     hosts --> ipam
     hosts --> mongo
 
     clients --> keysvc
     clients --> tunnel
-    clients --> graph
+    clients --> graphsvc
     clients --> crypto
     clients --> ipam
     clients --> mongo
@@ -135,7 +147,7 @@ flowchart TB
     keys --> mongo
     keys -. "imports INTERFACE_TYPE_LABELS" .-> hosts
 
-    topology --> graph
+    topology --> graphsvc
 
     networks --> ipam
     networks --> mongo
@@ -149,7 +161,8 @@ flowchart TB
     keysvc --> mongo
     tunnel --> crypto
     tunnel --> mongo
-    graph --> mongo
+    graphsvc --> mongo
+    crypto --> fernet
 ```
 
 ## 3. Request / deployment architecture
@@ -234,10 +247,12 @@ subdocuments; a Network's used IPs are derived by scanning
   `persistent_keepalive`. Created/removed reciprocally on both Hosts.
 
 **`clients`** — `_id`, `name`, `active_key_id`, `dns_server_id`, plus:
-- `network_memberships[]`: `network_id`, `ip`, `interface_name` (no
-  `interface_type` — Clients only ever attach to `host_network` Networks and
-  connect to Hosts, never Host-network-type-gated the way Host interfaces
-  are).
+- `network_memberships[]`: `network_id`, `ip`, `interface_name` — no
+  `interface_type`, since a Client interface is always a plain WireGuard peer
+  interface. Note the asymmetry: a Host interface's `network_type` is validated
+  server-side (`INTERFACE_TYPE_NETWORK_TYPE` in `app/hosts/routes.py`), whereas
+  a Client's membership form lists **every** Network unfiltered — attaching a
+  Client only to `host_network` Networks is convention here, not enforcement.
 - `connections[]`: `host_id`, `network_id`, `allowed_ips_set_id`,
   `persistent_keepalive` — one per Host the Client connects to, on a given
   Network; can have more than one entry for the same `network_id` (e.g. two
@@ -305,25 +320,35 @@ erDiagram
         string cidrs
     }
 
-    HOSTS ||--o{ NETWORKS : "managing_host_id (host_network)"
+    HOSTS |o--o{ NETWORKS : "managing_host_id (host_network)"
     NETWORKS }o--o{ HOSTS : "network_memberships[].network_id"
     NETWORKS }o--o{ CLIENTS : "network_memberships[].network_id"
     HOSTS }o--o{ CLIENTS : "connections[].host_id"
     HOSTS }o--o{ HOSTS : "peer_connections[].peer_host_id"
-    KEYS ||--o{ HOSTS : "network_memberships[].active_key_id"
-    KEYS ||--o{ CLIENTS : "active_key_id"
-    DNS_SERVERS ||--o{ HOSTS : "network_memberships[].dns_server_id"
-    DNS_SERVERS ||--o{ CLIENTS : "dns_server_id"
-    ALLOWED_IPS ||--o{ HOSTS : "peer_connections[].allowed_ips_set_id"
-    ALLOWED_IPS ||--o{ CLIENTS : "connections[].allowed_ips_set_id"
+    KEYS }o--o{ HOSTS : "network_memberships[].active_key_id"
+    KEYS |o--o{ CLIENTS : "active_key_id"
+    DNS_SERVERS }o--o{ HOSTS : "network_memberships[].dns_server_id"
+    DNS_SERVERS |o--o{ CLIENTS : "dns_server_id"
+    ALLOWED_IPS }o--o{ HOSTS : "peer_connections[].allowed_ips_set_id"
+    ALLOWED_IPS }o--o{ CLIENTS : "connections[].allowed_ips_set_id"
 ```
 
-Note the direction of the `KEYS` edges: they're drawn *from* `HOSTS`/`CLIENTS`
-*into* `KEYS`, because that's where the actual field lives (`active_key_id`
-on the host-interface/client side). `KEYS` itself carries no reciprocal
-field — there's deliberately no arrow drawn originating at `KEYS`, since
-querying "who uses this key" means scanning the referencing collections, not
-reading anything off the key document.
+Cardinalities are per-document, and the embedded arrays are what make most of
+these many-to-many: a Host document holds many interfaces (each with its own
+`active_key_id` / `dns_server_id`) and many `peer_connections` (each with its
+own `allowed_ips_set_id`), so a single Host can reference several Keys, DNS
+servers, or AllowedIPs sets at once — and each of those can be referenced by
+several Hosts. The `|o--o{` edges are the single-valued, nullable ones: a
+Client has at most one `active_key_id` and at most one `dns_server_id`, and
+only a `host_network`-type Network carries a `managing_host_id` at all.
+
+These lines are cardinality relationships, not pointers — read the label to
+see which side actually stores the reference. For `KEYS`, `DNS_SERVERS`, and
+`ALLOWED_IPS` the field always lives on the Host/Client side
+(`active_key_id`, `dns_server_id`, `allowed_ips_set_id`); those three
+collections carry no reciprocal field whatsoever. Answering "who uses this
+key?" therefore means scanning the referencing collections — exactly what
+`key_usages()` does — not reading anything off the key document.
 
 ## 5. Key architectural decisions
 
@@ -341,11 +366,14 @@ reading anything off the key document.
   `host_network` aren't just labels — `ipam` networks accept no Host/Client
   interface at all (pure CIDR-space bookkeeping), `p2p` networks only accept
   a Host's `p2p`-type interface (and back Host↔Host peering), and
-  `host_network` networks are the only valid target for Client attachment
-  or a Host's `client`/`client_non_wg` interface.
-- **Private keys are shown in the clear**, decrypted on the fly, no masking
-  or reveal step — on a Client's detail page and a Key's own edit page.
-  Deliberate: single-admin internal tool, no untrusted-viewer concern.
+  `host_network` networks are the only valid target for a Host's
+  `client`/`client_non_wg` interface. That gate is enforced server-side for
+  Host interfaces only; Client memberships are unvalidated against network
+  type (see §4).
+- **Private keys are only ever surfaced in two places** — a Client's detail
+  page and a Key's own edit page — decrypted on the fly, masked behind a
+  click-to-reveal control (`secret_reveal()` macro). Everywhere else a key is
+  referenced, only its `name` is shown.
 - **Everything runs in one container.** `mongod` and the Flask app are
   supervised as sibling processes by `supervisord`, not split into separate
   services/containers — simplicity over isolation, appropriate for a
@@ -362,8 +390,12 @@ hierarchical layout with explicit per-node `level`). Three entry points:
 detail page, fed by `/hosts/<id>/graph.json` / `/clients/<id>/graph.json`).
 Nodes are Networks (gray boxes, labeled by CIDR), Hosts (blue boxes), and
 Clients (green ellipses); edges represent network membership, Client→Host
-connections, Host↔Host peering (drawn as two segments through the shared
-Network node), and Network supernet→subnet containment. The three graphs use
+connections, Host↔Host peering, and Network supernet→subnet containment.
+Neither connection type is ever drawn as a direct entity-to-entity line: a
+Client's connection to a Host is drawn from the Client to the shared Network
+node (`_connection_edge()`, since the Host already has its own membership edge
+to that Network), and a Host↔Host peer connection becomes two segments routed
+host→network→host (`_peer_edges()`). The three graphs use
 different, non-interchangeable vertical-tier rules (Networks-on-top globally
 vs. Hosts-on-top on the per-entity pages) — see CLAUDE.md's "Visual/UI
 conventions" section for the full layout spec; this section is intentionally
