@@ -75,6 +75,9 @@ Set in `.env` at the repo root (see `.env.example`):
 | `ADMIN_USERNAME` | Admin username, seeded on first run only |
 | `ADMIN_PASSWORD` | Admin password, seeded on first run only |
 | `MONGO_URI` | Defaults to the in-container `mongodb://127.0.0.1:27017/wireguard_manager` |
+| `BACKUP_SCHEDULE` | Automatic snapshot schedule, `"<day> <HH:MM>"` (container local time, UTC unless `TZ` is set); `off` disables. Default `sunday 00:00` |
+| `BACKUP_RETENTION` | Number of snapshots kept in `/backups`; oldest pruned. Default `12` |
+| `BACKUP_DIR` | Where snapshots are written in the container. Default `/backups`; the compose file bind-mounts `./backups` there, so it normally stays unset |
 
 Generate a Fernet key with:
 
@@ -90,6 +93,11 @@ collection is empty; changing them in `.env` afterward has no effect.
 MongoDB data lives in the `mongo_data` named volume, mounted at `/data/db`
 inside the container, so it survives `docker compose down` and container
 recreation. `make clean` (`docker compose down -v`) deletes it.
+
+Backup snapshots live in `/backups` inside the container, **bind-mounted** from
+`./backups` at the repo root (gitignored). Because it's a host directory rather
+than a named volume, `make clean` / `down -v` can never delete backups — delete
+them from the Backup page or with `rm` in `./backups`.
 
 ## Docker packaging
 
@@ -107,10 +115,17 @@ recreation. `make clean` (`docker compose down -v`) deletes it.
   installable library, so `uv` manages only the dependency set.
 - MongoDB 7 server is installed into the same image.
 
-`docker/supervisord.conf` runs two programs:
+`docker/supervisord.conf` runs three programs:
 
 - `mongod --bind_ip 127.0.0.1 --port 27017 --dbpath /data/db`
 - `/app/.venv/bin/gunicorn -w 2 --worker-class gthread --threads 4 --timeout 60 -b 0.0.0.0:5000 wsgi:app`
+- `/app/.venv/bin/python -m app.backup_daemon` — the scheduled-snapshot daemon.
+  It runs as its own process (not an in-app thread) because gunicorn runs 2
+  workers and an in-process scheduler would fire twice. It reads
+  `BACKUP_SCHEDULE`/`BACKUP_RETENTION`/`BACKUP_DIR`, sleeps until the next
+  weekly run, writes a snapshot, and prunes. With `BACKUP_SCHEDULE=off` it
+  idles forever rather than exiting, so `supervisorctl status` shows it RUNNING
+  instead of restart-looping under `autorestart=true`.
 
 Note the absolute gunicorn path (it isn't installed system-wide) and the
 `gthread` worker class. With the default `sync` workers, an idle keep-alive
@@ -185,7 +200,7 @@ builds single-platform for the host arch and loads it.
 No automated test suite yet. `make smoke-test` covers "does it boot and serve
 the login page". Beyond that, verify through the UI:
 
-1. `make up`, then confirm both programs are running under supervisor
+1. `make up`, then confirm all three programs are running under supervisor
    (`make logs`, or `docker exec ... supervisorctl status`).
 2. Create a Network, create a Host (name only), add a `client`-type interface
    to it on a `host_network`-type Network, then rotate/assign that interface's
@@ -198,6 +213,16 @@ the login page". Beyond that, verify through the UI:
    and confirm both sides' configs list each other correctly — `Endpoint` and
    `PublicKey` must resolve from each side's *own* interface, not a host-level
    field.
+5. Backup/restore: on the Backup page, **Create Backup Now** writes a snapshot
+   (visible in the table and in `./backups` on the host); delete the Client,
+   then Restore the snapshot from the list (confirm page → "Yes, Replace
+   Everything" → you're logged out); log back in and confirm the Client is back
+   and its tunnel config still downloads. Repeat via **Upload and Restore**
+   with a downloaded `.zip`. Uploading a non-zip file flashes an error and
+   changes nothing. `docker compose down -v` must leave `./backups` untouched.
+   To exercise the scheduler without waiting a week, set
+   `BACKUP_SCHEDULE="<today's day> <a minute from now>"` and watch a snapshot
+   appear; `BACKUP_SCHEDULE=off` leaves the `backup` program RUNNING but idle.
 
 ## Screenshots
 

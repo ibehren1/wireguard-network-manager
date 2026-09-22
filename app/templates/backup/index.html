@@ -1,0 +1,55 @@
+{# Copyright © 2026 Isaac Behrens. All rights reserved. #}
+{% extends "base.html" %}
+{% block title %}Backup - WireGuard Network Manager{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h1>Backup</h1>
+  <form method="post" action="{{ url_for('backup.create') }}">
+    <button type="submit" class="btn btn-primary">Create Backup Now</button>
+  </form>
+</div>
+<p class="text-muted">
+  Automatic snapshots: {{ schedule }}, keeping the last {{ retention }}.
+  Backups are stored on the host in the <code>./backups</code> bind mount and survive
+  <code>docker compose down -v</code>.
+</p>
+<table class="table">
+  <thead><tr><th>Name</th><th>Created</th><th>Size</th><th></th></tr></thead>
+  <tbody>
+    {% for snap in snapshots %}
+    <tr>
+      <td><code>{{ snap.name }}</code></td>
+      <td>{{ snap.created }}</td>
+      <td>{{ snap.size | filesizeformat }}</td>
+      <td>
+        <form method="post" action="{{ url_for('backup.restore_snapshot', name=snap.name) }}" class="d-inline" onsubmit="return confirm('Restore this backup? ALL current data will be replaced.');">
+          <button type="submit" class="btn btn-link p-0">Restore</button>
+        </form>
+        <a class="ms-2" href="{{ url_for('backup.download_snapshot', name=snap.name) }}">Download</a>
+        <form method="post" action="{{ url_for('backup.delete_snapshot', name=snap.name) }}" class="d-inline" onsubmit="return confirm('Delete this backup?');">
+          <button type="submit" class="btn btn-link text-danger p-0 ms-2">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">No backups yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h2 class="mt-5 mb-3">Restore from Upload</h2>
+<div class="alert alert-danger">
+  Uploading a backup <strong>replaces ALL current data</strong>, including the admin
+  login credentials, with the contents of the archive. Restored private keys are only
+  usable if this instance has the same <code>ENCRYPTION_KEY</code> as the one the
+  backup was taken from.
+</div>
+<form method="post" action="{{ url_for('backup.restore_upload') }}" enctype="multipart/form-data" class="col-md-6">
+  {{ form.hidden_tag() }}
+  <div class="mb-3">
+    {{ form.archive.label(class="form-label") }}
+    {{ form.archive(class="form-control") }}
+  </div>
+  <button type="submit" class="btn btn-danger">Upload and Restore</button>
+</form>
+{% endblock %}

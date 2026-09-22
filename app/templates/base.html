@@ -21,6 +21,7 @@
         <a class="nav-link" href="{{ url_for('keys.list_keys') }}"><i class="bi bi-key"></i> Keys</a>
         <a class="nav-link" href="{{ url_for('dns_servers.list_dns_servers') }}">DNS Servers</a>
         <a class="nav-link" href="{{ url_for('allowed_ips.list_allowed_ips_sets') }}">Allowed IPs</a>
+        <a class="nav-link" href="{{ url_for('backup.index') }}">Backup</a>
       </div>
       <div class="navbar-nav ms-auto">
         <a class="nav-link" href="{{ url_for('auth.logout') }}">Logout ({{ current_user.username }})</a>

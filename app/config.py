@@ -20,3 +20,7 @@ class Config:
     ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY")
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
     ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin")
+    BACKUP_DIR = os.environ.get("BACKUP_DIR", "/backups")
+    BACKUP_SCHEDULE = os.environ.get("BACKUP_SCHEDULE", "sunday 00:00")
+    BACKUP_RETENTION = int(os.environ.get("BACKUP_RETENTION", "12"))
+    MAX_CONTENT_LENGTH = 64 * 1024 * 1024  # 64 MB cap on backup archive uploads

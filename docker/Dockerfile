@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 
-RUN mkdir -p /data/db /var/log/supervisor
+RUN mkdir -p /data/db /backups /var/log/supervisor
 
 WORKDIR /app
 

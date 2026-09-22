@@ -284,6 +284,66 @@ Export UI lets the user copy or download the generated file, with an option to o
 `[Peer]` blocks, this override — when supplied — is applied to *every* peer block's
 `AllowedIPs` line in that interface's export, not just a single connection's.
 
+## Backup/restore
+
+Full-database backup and restore lives on the **Backup page** (`/backup`, blueprint
+`app.backup`, templates under `app/templates/backup/`, all logic in
+`app/services/backup.py`).
+
+- **Archive format**: a `.zip` built in memory with stdlib `zipfile` — one
+  `<collection>.json` per collection (all 7: `hosts`, `clients`, `networks`, `keys`,
+  `dns_servers`, `allowed_ips`, `users`) serialized with `bson.json_util.dumps` (which
+  round-trips `ObjectId` and `datetime`, the only two non-JSON-native BSON types in the
+  data), plus a `manifest.json` (`app`, app `version`, `created_at`, per-collection doc
+  counts). No `mongodump`/subprocess anywhere. Cross-references are stored as
+  `str(ObjectId)`, so they survive verbatim as long as `_id` round-trips exactly —
+  which `json_util` guarantees. No indexes exist, so a restore recreates none.
+- **Where backups live**: every snapshot (manual, scheduled, or pre-restore safety) is
+  written to `BACKUP_DIR` (default `/backups`), which the compose file **bind-mounts**
+  from `./backups` on the host — deliberately *not* a named volume, so
+  `docker compose down -v` can never delete backups. The Dockerfile creates `/backups`
+  but does **not** declare it a `VOLUME` (that would spawn anonymous volumes when run
+  without the bind mount). `./backups` is gitignored — snapshots contain Fernet
+  ciphertext and the admin password hash.
+- **The Backup page** lists every snapshot in `BACKUP_DIR` (Name/Created/Size, newest
+  first — names embed a sortable UTC timestamp,
+  `wireguard-manager-backup-<YYYYMMDD-HHMMSS>.zip`, matched by a strict whitelist regex
+  `SNAPSHOT_NAME_RE` used for every filename-taking route instead of `secure_filename`)
+  with per-row **Restore** / **Download** / **Delete** actions, a **Create Backup Now**
+  button (POST `/backup/create` — writes a snapshot, then prunes), and an
+  **upload-and-restore** form (`RestoreUploadForm`, a FlaskForm with a `FileField`, so
+  the destructive upload POST carries CSRF via `hidden_tag()`).
+- **Restore** always goes through a confirmation page (`/backup/restore/confirm`)
+  showing the archive's per-collection counts side-by-side with the current DB counts.
+  Two sources, encoded in a hidden `source` field: `snapshot:<name>` (a file already in
+  `BACKUP_DIR`) or `pending:<uid>` (an uploaded archive staged at
+  `BACKUP_DIR/.restore-pending-<uid>.zip` between the upload POST and the confirm POST;
+  unlinked in a `finally` after the confirm runs). On confirm: a **pre-restore safety
+  snapshot** is written to `BACKUP_DIR` first, then `restore_from_bytes()` does a full
+  replace — for each whitelisted collection present in the archive, `delete_many({})`
+  then `insert_many` of the `json_util.loads` docs (original `_id`s preserved).
+  Collections missing from the archive are left untouched and reported as skipped;
+  unknown collections in the archive are ignored. This **includes `users`** — restored
+  admin credentials replace the current ones, so the route calls `logout_user()` and
+  redirects to login with a flash explaining to log in with the restored credentials.
+  Upload size is capped by `MAX_CONTENT_LENGTH` (64 MB) in `app/config.py`.
+- **`ENCRYPTION_KEY` caveat** (surfaced on the page, the confirm page, and the README):
+  `keys.private_key` is Fernet ciphertext, so a backup restored into an instance with a
+  different `ENCRYPTION_KEY` loads fine but its private keys stay undecryptable.
+- **Scheduled snapshots**: a third supervisord program runs
+  `python -m app.backup_daemon` — a standalone process (not an in-app thread, because
+  gunicorn's 2 workers would each fire their own scheduler). It parses
+  `BACKUP_SCHEDULE` (`"<dayname> <HH:MM>"` in container local time — UTC unless `TZ` is
+  set — default `sunday 00:00`; `off` disables), sleeps in 5-second increments until
+  the next weekly occurrence (`next_run()`), writes a snapshot, and prunes `BACKUP_DIR`
+  to the newest `BACKUP_RETENTION` (default 12). Pruning runs after **every** snapshot
+  write (manual creates included), so manual backups count toward the retention. When
+  disabled or given an unparseable schedule the daemon logs once and idle-sleeps
+  forever rather than exiting, so `autorestart=true` doesn't restart-loop it and
+  `supervisorctl status` shows it RUNNING. Snapshot-write `OSError`s (e.g. bind mount
+  missing on the host) are caught and logged — the loop continues and retries at the
+  next scheduled time.
+
 ## Visual/UI conventions
 
 - Icons (Bootstrap Icons via CDN): Hosts = `bi-hdd-rack` (a rack-server glyph —
@@ -293,6 +353,7 @@ Export UI lets the user copy or download the generated file, with an option to o
   every list table, every detail-page heading, the navbar, the dashboard's stat
   cards, and every form page whose heading names a specific Host/Client — so
   entity type is recognizable at a glance regardless of which page you're on.
+  The navbar's utility links (DNS Servers, Allowed IPs, Backup) carry no icon.
 - **Networks list/detail pages**: both show a "Type" column/row with the network's
   `networkType` display label; when the type is `host_network`, the managing Host's
   name is shown alongside it as a link to that Host's detail page (`bi-hdd-rack` icon).
@@ -534,10 +595,11 @@ Export UI lets the user copy or download the generated file, with an option to o
   package = false` in `pyproject.toml` — this project isn't structured as an
   installable package (it's a Flask app run via `wsgi.py`, not a library), so
   `uv` only manages the dependency set, not the app itself. Installs MongoDB 7
-  server too; `supervisord` config runs two programs: `mongod` (bound to
-  localhost, data dir `/data/db`) and the Flask app via `gunicorn` (invoked as
+  server too; `supervisord` config runs three programs: `mongod` (bound to
+  localhost, data dir `/data/db`), the Flask app via `gunicorn` (invoked as
   `/app/.venv/bin/gunicorn`, not a bare `gunicorn` off `$PATH`, since it's not
-  installed system-wide).
+  installed system-wide), and the backup daemon (`/app/.venv/bin/python -m
+  app.backup_daemon` — see "Backup/restore" above).
   - To change dependencies: edit `pyproject.toml`'s `dependencies` list, then
     run `uv lock` locally (regenerates `uv.lock`) before rebuilding the image —
     `uv sync --frozen` in the Dockerfile will fail if `uv.lock` is out of sync
@@ -555,8 +617,11 @@ Export UI lets the user copy or download the generated file, with an option to o
   thread instead of the whole worker.
 - `docker/docker-compose.yml`: builds the image, maps app port (bound to
   `127.0.0.1:8080` on the host, not all interfaces), mounts a named volume at
-  `/data/db` for Mongo persistence, passes env vars (`ADMIN_USERNAME`,
-  `ADMIN_PASSWORD`, `SECRET_KEY`, `ENCRYPTION_KEY`, `MONGO_URI` if needed).
+  `/data/db` for Mongo persistence **and a bind mount `./backups:/backups`**
+  for backup snapshots (a host directory, not a named volume, so
+  `down -v` can't delete backups — see "Backup/restore" above), passes env
+  vars (`ADMIN_USERNAME`, `ADMIN_PASSWORD`, `SECRET_KEY`, `ENCRYPTION_KEY`,
+  `MONGO_URI` if needed, `BACKUP_SCHEDULE`/`BACKUP_RETENTION` with defaults).
   README.md's "Quick start" section carries a copy of this file for users
   deploying the published Docker Hub image (`image:` instead of `build:`,
   bound to all interfaces instead of just localhost since it's meant to run
@@ -570,8 +635,8 @@ Export UI lets the user copy or download the generated file, with an option to o
 
 ## Verification
 
-- `docker compose up`: confirm both `mongod` and Flask start under supervisor
-  (check logs / `supervisorctl status`).
+- `docker compose up`: confirm `mongod`, the Flask app, **and the backup daemon**
+  all start under supervisor (check logs / `supervisorctl status`).
 - Through the UI: create a Network, create a Host (just a name), add a `client`-type
   interface to it on a `host_network`-type Network (rotating/assigning that interface's
   own key separately via the Host detail page's per-interface actions), create a Client,
@@ -581,3 +646,11 @@ Export UI lets the user copy or download the generated file, with an option to o
   Network (each with its own key), and a Host-Host P2P connection between them, confirm
   both sides' configs list each other correctly (Endpoint and PublicKey resolved from
   each side's own interface).
+- Backup/restore: on the Backup page, Create Backup Now writes a snapshot (visible in
+  the table and in `./backups` on the host); delete the Client, Restore the snapshot
+  (confirm page → logged out), log back in and confirm the Client is back and its
+  tunnel config still downloads. Repeat via Upload and Restore with a downloaded `.zip`.
+  A non-zip upload flashes an error and changes nothing. `docker compose down -v` must
+  leave `./backups` untouched. To exercise the scheduler without waiting a week, set
+  `BACKUP_SCHEDULE="<today's day> <a minute from now>"`; `BACKUP_SCHEDULE=off` leaves
+  the daemon RUNNING but idle.
