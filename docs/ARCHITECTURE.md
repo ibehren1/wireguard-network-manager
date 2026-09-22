@@ -22,7 +22,7 @@ multi-tenancy, no RBAC.
 ## 2. Component architecture
 
 The app is a single Flask application (`app/__init__.py:create_app`)
-composed of nine blueprints, each in its own package under `app/`, plus
+composed of ten blueprints, each in its own package under `app/`, plus
 shared service/util modules with no blueprint of their own. All blueprints
 talk to MongoDB directly via `app.extensions.get_db()` (a process-global
 `pymongo.MongoClient`, built once by `init_mongo()` during `create_app()` —
@@ -86,6 +86,16 @@ of its own. Feeds the dashboard's client-side vis-network render. Per-entity
 graphs (`/hosts/<id>/graph.json`, `/clients/<id>/graph.json`) are instead
 owned by the `hosts`/`clients` blueprints themselves, not this one.
 
+**`backup`** (`/backup`) — database backup/restore UI. One page listing the
+snapshots in `BACKUP_DIR` (create/download/restore/delete per snapshot) plus
+an upload-and-restore form. Both restore paths land on a confirmation page
+(archive manifest counts vs. current DB counts) before
+`restore_from_bytes()` wipes and repopulates each archived collection; a
+pre-restore safety snapshot is written first, and the session is logged out
+afterward (restored `users` replace the admin credentials). All dump/restore
+mechanics live in `app/services/backup.py` — pure PyMongo +
+`bson.json_util` + stdlib `zipfile`, no `mongodump` subprocess.
+
 **Shared, blueprint-less modules:**
 - `app/services/tunnel.py` — builds one `wg-quick` `.conf` file (as a string)
   per interface; called by both `hosts` and `clients` routes.
@@ -100,6 +110,13 @@ owned by the `hosts`/`clients` blueprints themselves, not this one.
   in-project dependency is `get_fernet()` from `app/extensions.py`.
 - `app/utils/ipam.py` — pure `ipaddress`-based CIDR/IP helpers. No Flask/Mongo
   dependency.
+- `app/services/backup.py` — full-DB dump to a `.zip` of per-collection
+  `bson.json_util` JSON files plus a `manifest.json`, snapshot
+  listing/pruning under `BACKUP_DIR`, full-replace restore, and the weekly
+  schedule parser (`parse_schedule`/`next_run`). Called by the `backup`
+  blueprint and by `app/backup_daemon.py` (the supervisord-run scheduled
+  snapshot process — separate from gunicorn so it isn't duplicated across the
+  2 workers).
 - `app/extensions.py` — process-global `MongoClient`/`Fernet`/`LoginManager`
   singletons and their `get_db()`/`get_fernet()` accessors.
 
@@ -115,6 +132,7 @@ flowchart TB
         dns_servers["dns_servers<br/>/dns-servers"]
         allowed_ips["allowed_ips<br/>/allowed-ips"]
         topology["topology<br/>/topology"]
+        backup["backup<br/>/backup"]
     end
 
     subgraph SVC["Shared services / utils (no blueprint)"]
@@ -123,6 +141,7 @@ flowchart TB
         keysvc["keys/service.py"]
         crypto["utils/crypto.py"]
         ipam["utils/ipam.py"]
+        backupsvc["services/backup.py"]
     end
 
     mongo[("MongoDB<br/>(via extensions.get_db())")]
@@ -156,6 +175,8 @@ flowchart TB
     main --> mongo
     dns_servers --> mongo
     allowed_ips --> mongo
+    backup --> backupsvc
+    backupsvc --> mongo
 
     keysvc --> crypto
     keysvc --> mongo
@@ -169,7 +190,7 @@ flowchart TB
 
 Everything — app server and database — runs in **one Docker container**,
 supervised by `supervisord` (`docker/supervisord.conf`, copied into the image
-by `docker/Dockerfile`). `supervisord` runs two long-lived programs:
+by `docker/Dockerfile`). `supervisord` runs three long-lived programs:
 
 - `mongod`, bound to `127.0.0.1:27017` only (not exposed outside the
   container), data directory `/data/db` (a named volume, `mongo_data`, so
@@ -184,6 +205,15 @@ by `docker/Dockerfile`). `supervisord` runs two long-lived programs:
   WORKER TIMEOUT` in `webapp.err.log`). `gthread` lets each worker run
   multiple threads, so an idle connection occupies a thread, not a whole
   worker.
+- the backup daemon, `python -m app.backup_daemon`, which sleeps until the
+  next weekly `BACKUP_SCHEDULE` time (default Sunday 00:00 container local
+  time), writes a snapshot `.zip` into `/backups`, and prunes to
+  `BACKUP_RETENTION` (default 12). `/backups` is a **bind mount**
+  (`./backups` on the host), not a named volume, so `docker compose down -v`
+  can never delete backups. The daemon is a separate process rather than an
+  in-app thread precisely because gunicorn runs 2 workers — an in-process
+  scheduler would fire twice. With `BACKUP_SCHEDULE=off` it idles forever
+  (never exits, so `autorestart=true` doesn't restart-loop it).
 
 A request from the browser hits gunicorn on the container's port 5000
 (mapped to host `8080` by `docker-compose.yml`), is dispatched to a thread in
@@ -200,6 +230,7 @@ flowchart LR
         subgraph Sup["supervisord (PID 1)"]
             Gunicorn["gunicorn master<br/>2 workers × gthread × 4 threads"]
             Mongod["mongod<br/>127.0.0.1:27017 only"]
+            BackupDaemon["backup daemon<br/>python -m app.backup_daemon"]
         end
         Flask["Flask app (blueprints)"]
         PyMongo["PyMongo MongoClient<br/>(pooled, process-global)"]
@@ -207,9 +238,11 @@ flowchart LR
         Gunicorn --> Flask
         Flask --> PyMongo
         PyMongo --> Mongod
+        BackupDaemon --> Mongod
     end
 
     Mongod --> Volume[("mongo_data volume<br/>/data/db")]
+    BackupDaemon --> BackupsDir[("./backups bind mount<br/>/backups")]
 ```
 
 ## 4. Data model

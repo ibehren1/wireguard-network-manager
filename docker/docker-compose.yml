@@ -16,8 +16,11 @@ services:
       - ENCRYPTION_KEY=${ENCRYPTION_KEY:?ENCRYPTION_KEY is required, see .env.example}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required, see .env.example}
+      - "BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-sunday 00:00}"
+      - BACKUP_RETENTION=${BACKUP_RETENTION:-12}
     volumes:
       - mongo_data:/data/db
+      - ./backups:/backups
     restart: unless-stopped
 
 volumes:

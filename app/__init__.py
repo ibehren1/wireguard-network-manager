@@ -19,6 +19,7 @@ def create_app():
     from app.allowed_ips import bp as allowed_ips_bp
     from app.auth import bp as auth_bp
     from app.auth import models as auth_models  # noqa: F401 registers user_loader
+    from app.backup import bp as backup_bp
     from app.clients import bp as clients_bp
     from app.dns_servers import bp as dns_servers_bp
     from app.hosts import bp as hosts_bp
@@ -36,6 +37,7 @@ def create_app():
     app.register_blueprint(topology_bp)
     app.register_blueprint(dns_servers_bp)
     app.register_blueprint(allowed_ips_bp)
+    app.register_blueprint(backup_bp)
 
     from app.bootstrap import ensure_admin_user
 

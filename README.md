@@ -143,6 +143,7 @@ services:
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
     volumes:
       - mongo_data:/data/db
+      - ./backups:/backups
     restart: unless-stopped
 
 volumes:
@@ -183,6 +184,8 @@ that one container; images are published for `linux/amd64` and `linux/arm64`.
 | `ADMIN_PASSWORD` | yes | Admin password, seeded on first run only |
 | `ADMIN_USERNAME` | no (`admin`) | Admin username, seeded on first run only |
 | `MONGO_URI` | no | Defaults to the bundled MongoDB inside the container |
+| `BACKUP_SCHEDULE` | no (`sunday 00:00`) | Automatic snapshot schedule, `"<day> <HH:MM>"` (container local time, UTC unless `TZ` is set); `off` disables |
+| `BACKUP_RETENTION` | no (`12`) | Number of snapshots kept in `/backups`; oldest are pruned |
 
 Admin credentials are seeded **only while no user exists**. Changing them in
 `.env` later has no effect on an existing install.
@@ -191,9 +194,24 @@ Admin credentials are seeded **only while no user exists**. Changing them in
 
 Everything lives in MongoDB at `/data/db`, mounted from the `mongo_data`
 volume, so data survives `docker compose down`, restarts, and image upgrades.
-`docker compose down -v` deletes it. Back up the volume like any other Docker
-volume — and remember that your `ENCRYPTION_KEY` is what makes the stored
-private keys readable, so back that up too, separately.
+`docker compose down -v` deletes it.
+
+The **Backup** page in the app covers backup and restore directly: create a
+full-database snapshot with one click, download any snapshot as a `.zip`, and
+restore from a listed snapshot or an uploaded archive. Snapshots are written to
+`/backups` in the container, which the compose file bind-mounts from
+`./backups` on the host — a plain directory, **not** a Docker volume, so
+`docker compose down -v` can never delete your backups. A scheduled snapshot
+also runs automatically (weekly on Sunday at 00:00 container time by default;
+see `BACKUP_SCHEDULE`/`BACKUP_RETENTION` above), pruning to the most recent 12.
+
+A restore replaces **all** data, including the admin credentials, with the
+archive's contents (you'll be logged out and log back in with the restored
+credentials). A safety snapshot of the current database is written to
+`/backups` immediately before every restore. And remember that your
+`ENCRYPTION_KEY` is what makes the stored private keys readable — a backup
+restored into an instance with a different `ENCRYPTION_KEY` loads fine, but its
+private keys stay undecryptable, so back that key up too, separately.
 
 ### Before you expose it
 
